@@ -1,5 +1,6 @@
 package com.example.data
 
+import android.util.Log
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaSourceConfig
@@ -25,30 +26,6 @@ class MediaApiClient {
         page: Int = 1
     ): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
         try {
-            // Handle internal showcase
-            if (source.apiUrl.startsWith("internal://")) {
-                val filtered = if (query.isBlank()) {
-                    CuratedMediaData.ITEMS
-                } else {
-                    val q = query.lowercase().trim()
-                    CuratedMediaData.ITEMS.filter { item ->
-                        item.title.lowercase().contains(q) ||
-                        item.tags.any { it.lowercase().contains(q) } ||
-                        (item.author?.lowercase()?.contains(q) == true) ||
-                        (item.description?.lowercase()?.contains(q) == true)
-                    }
-                }
-                // Simulate paging
-                val pageSize = source.defaultPageSize
-                val startIndex = ((page - 1) * pageSize).coerceAtLeast(0)
-                val items = if (startIndex < filtered.size) {
-                    filtered.subList(startIndex, (startIndex + pageSize).coerceAtMost(filtered.size))
-                } else {
-                    emptyList()
-                }
-                return@withContext Result.success(items)
-            }
-
             // Build dynamic HTTP URL
             val urlBuilder = source.apiUrl.toHttpUrlOrNull()?.newBuilder()
                 ?: return@withContext Result.failure(IllegalArgumentException("Invalid API URL: ${source.apiUrl}"))
@@ -76,7 +53,7 @@ class MediaApiClient {
 
             val requestBuilder = Request.Builder()
                 .url(urlBuilder.build())
-                .addHeader("User-Agent", "MediaBrowserApp/1.0 (Android)")
+                .addHeader("User-Agent", "ArtfluxApp/1.0 (Android)")
                 .addHeader("Accept", "application/json")
 
             // API key in header
@@ -103,7 +80,7 @@ class MediaApiClient {
         }
     }
 
-    private fun parseMediaItems(source: MediaSourceConfig, body: String): List<MediaItem> {
+    internal fun parseMediaItems(source: MediaSourceConfig, body: String): List<MediaItem> {
         val trimmed = body.trim()
         val itemsArray: JSONArray = if (trimmed.startsWith("[")) {
             JSONArray(trimmed)
@@ -112,11 +89,10 @@ class MediaApiClient {
             if (source.itemsPath.isBlank()) {
                 // Try common keys if itemsPath is empty
                 when {
+                    rootObj.has("posts") -> rootObj.optJSONArray("posts")
                     rootObj.has("data") -> rootObj.optJSONArray("data")
                     rootObj.has("results") -> rootObj.optJSONArray("results")
                     rootObj.has("images") -> rootObj.optJSONArray("images")
-                    rootObj.has("posts") -> rootObj.optJSONArray("posts")
-                    rootObj.has("artworks") -> rootObj.optJSONArray("artworks")
                     else -> null
                 } ?: JSONArray()
             } else {
@@ -124,14 +100,21 @@ class MediaApiClient {
             }
         }
 
+        Log.d("ArtfluxDebug", "Received ${itemsArray.length()} posts from ${source.name}")
         val result = mutableListOf<MediaItem>()
+        var gifCount = 0
+        var videoCount = 0
         for (i in 0 until itemsArray.length()) {
             val obj = itemsArray.optJSONObject(i) ?: continue
             val item = mapJsonToMediaItem(source, obj, i)
             if (item != null) {
                 result.add(item)
+                if (item.mediaType == MediaType.GIF) gifCount++
+                if (item.mediaType == MediaType.VIDEO) videoCount++
+                Log.d("ArtfluxDebug", "Post #${item.id}: fileUrl=${item.imageUrl}, detectedType=${item.mediaType}")
             }
         }
+        Log.d("ArtfluxDebug", "Parsed ${result.size} posts: $gifCount GIF(s), $videoCount VIDEO(s)")
         return result
     }
 
@@ -147,28 +130,62 @@ class MediaApiClient {
         val title = extractValue(obj, source.titleField).ifBlank {
             extractValue(obj, "name").ifBlank { "Art #$id" }
         }
-        val postUrl = extractValue(obj, source.postUrlField).let {
-            if (it.isBlank()) null else fixUrl(it)
+
+        val postUrl = when {
+            source.apiUrl.contains("safebooru.org") -> "https://safebooru.org/index.php?page=post&s=view&id=$id"
+            source.apiUrl.contains("danbooru") -> "https://danbooru.donmai.us/posts/$id"
+            source.apiUrl.contains("yande.re") -> "https://yande.re/post/show/$id"
+            else -> extractValue(obj, source.postUrlField).let {
+                if (it.isBlank()) null else fixUrl(it)
+            }
         }
 
         // Tags parsing
         val tagsList = extractTags(obj, source.tagsField)
 
         // Rating parsing
-        val ratingStr = extractValue(obj, source.ratingField).lowercase()
+        val ratingStr = extractValue(obj, source.ratingField).lowercase().trim()
         val rating = when {
-            ratingStr.contains("safe") || ratingStr == "s" || ratingStr == "g" -> MediaRating.SAFE
-            ratingStr.contains("quest") || ratingStr == "q" -> MediaRating.QUESTIONABLE
-            ratingStr.contains("explicit") || ratingStr == "e" -> MediaRating.EXPLICIT
-            else -> MediaRating.SAFE
+            source.apiUrl.contains("danbooru") -> {
+                when (ratingStr) {
+                    "g", "general" -> MediaRating.SAFE
+                    "s", "sensitive", "q", "questionable" -> MediaRating.SUGGESTIVE
+                    "e", "explicit" -> MediaRating.ADULT
+                    else -> MediaRating.SAFE
+                }
+            }
+            else -> {
+                when {
+                    ratingStr == "s" || ratingStr == "g" || ratingStr.contains("safe") || ratingStr.contains("general") -> MediaRating.SAFE
+                    ratingStr == "q" || ratingStr.contains("quest") || ratingStr.contains("sensit") || ratingStr.contains("suggest") -> MediaRating.SUGGESTIVE
+                    ratingStr == "e" || ratingStr.contains("expl") || ratingStr.contains("adult") -> MediaRating.ADULT
+                    else -> MediaRating.SAFE
+                }
+            }
         }
 
-        // Media type
+        // Media type detection (GIF, VIDEO, IMAGE)
         val typeStr = extractValue(obj, source.mediaTypeField).lowercase()
+        val imageExt = finalImage.substringAfterLast('.', "").substringBefore('?').lowercase()
+        val rawImageExt = rawImage.substringAfterLast('.', "").substringBefore('?').lowercase()
+        val safebooruImageField = obj.optString("image").lowercase()
+
+        val isGif = typeStr.contains("gif") ||
+                imageExt == "gif" ||
+                rawImageExt == "gif" ||
+                safebooruImageField.endsWith(".gif")
+
+        val isVideo = typeStr.contains("video") ||
+                typeStr.contains("mp4") ||
+                typeStr.contains("webm") ||
+                imageExt in listOf("mp4", "webm", "mkv", "mov") ||
+                rawImageExt in listOf("mp4", "webm", "mkv", "mov") ||
+                safebooruImageField.endsWith(".mp4") ||
+                safebooruImageField.endsWith(".webm")
+
         val mediaType = when {
-            typeStr.contains("gif") || finalImage.endsWith(".gif", true) -> MediaType.GIF
-            typeStr.contains("video") || typeStr.contains("mp4") || finalImage.endsWith(".mp4", true) -> MediaType.VIDEO
-            typeStr.contains("art") || typeStr.contains("illustration") -> MediaType.ART
+            isVideo -> MediaType.VIDEO
+            isGif -> MediaType.GIF
             else -> MediaType.IMAGE
         }
 
@@ -199,24 +216,40 @@ class MediaApiClient {
         rawImage: String,
         rawThumb: String
     ): Pair<String, String> {
-        // Art Institute of Chicago special handling
-        if (source.apiUrl.contains("artic.edu")) {
-            val imageId = rawImage.ifBlank { obj.optString("image_id") }
-            if (imageId.isNotBlank() && imageId != "null") {
-                val full = "https://www.artic.edu/iiif/2/$imageId/full/843,/0/default.jpg"
-                val thumb = "https://www.artic.edu/iiif/2/$imageId/full/400,/0/default.jpg"
-                return Pair(full, thumb)
-            }
-        }
-
-        // Safebooru special handling
+        // Safebooru handling
         if (source.apiUrl.contains("safebooru.org")) {
             val directory = obj.optString("directory")
             val image = obj.optString("image")
             if (directory.isNotBlank() && image.isNotBlank()) {
                 val full = "https://safebooru.org/images/$directory/$image"
-                val thumb = "https://safebooru.org/thumbnails/$directory/thumbnail_$image"
+                val rawPreview = obj.optString("preview_url")
+                val thumb = when {
+                    rawPreview.isNotBlank() -> fixUrl(rawPreview)
+                    image.endsWith(".mp4", true) || image.endsWith(".webm", true) -> {
+                        val baseName = image.substringBeforeLast('.')
+                        "https://safebooru.org/thumbnails/$directory/thumbnail_$baseName.jpg"
+                    }
+                    else -> "https://safebooru.org/thumbnails/$directory/thumbnail_$image"
+                }
                 return Pair(full, thumb)
+            }
+        }
+
+        // Danbooru handling
+        if (source.apiUrl.contains("danbooru")) {
+            val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("large_file_url") } }
+            val previewUrl = rawThumb.ifBlank { obj.optString("preview_file_url").ifBlank { fileUrl } }
+            if (fileUrl.isNotBlank()) {
+                return Pair(fixUrl(fileUrl), fixUrl(previewUrl))
+            }
+        }
+
+        // Yande.re handling
+        if (source.apiUrl.contains("yande.re")) {
+            val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("sample_url") } }
+            val previewUrl = rawThumb.ifBlank { obj.optString("preview_url").ifBlank { obj.optString("sample_url") } }
+            if (fileUrl.isNotBlank()) {
+                return Pair(fixUrl(fileUrl), fixUrl(previewUrl))
             }
         }
 

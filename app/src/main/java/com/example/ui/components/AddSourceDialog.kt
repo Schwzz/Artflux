@@ -103,6 +103,11 @@ fun AddSourceDialog(
     var tagsField by remember { mutableStateOf(initialConfig?.tagsField ?: "tags") }
     var ratingField by remember { mutableStateOf(initialConfig?.ratingField ?: "rating") }
     var mediaTypeField by remember { mutableStateOf(initialConfig?.mediaTypeField ?: "media_type") }
+    var gifQueryTag by remember { mutableStateOf(initialConfig?.gifQueryTag ?: "") }
+    var videoQueryTag by remember { mutableStateOf(initialConfig?.videoQueryTag ?: "") }
+    var safeRatingTag by remember { mutableStateOf(initialConfig?.safeRatingTag ?: "") }
+    var suggestiveRatingTag by remember { mutableStateOf(initialConfig?.suggestiveRatingTag ?: "") }
+    var adultRatingTag by remember { mutableStateOf(initialConfig?.adultRatingTag ?: "") }
     var apiKey by remember { mutableStateOf(initialConfig?.apiKey ?: "") }
     var apiKeyHeader by remember { mutableStateOf(initialConfig?.apiKeyHeader ?: "") }
 
@@ -557,7 +562,74 @@ fun AddSourceDialog(
                             }
 
                             HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 4.dp))
-                            FormSectionTitle("4. Authentication (Optional)")
+                            FormSectionTitle("4. Media Discovery Tags (Optional)")
+                            Text(
+                                text = "Tags or keywords used by this API to find animated GIFs and videos (e.g., animated, webm).",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    FormTextField(
+                                        label = "GIF Query Tag",
+                                        value = gifQueryTag,
+                                        onValueChange = { gifQueryTag = it },
+                                        placeholder = "e.g. animated",
+                                        testTag = "input_gif_query_tag"
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    FormTextField(
+                                        label = "Video Query Tag",
+                                        value = videoQueryTag,
+                                        onValueChange = { videoQueryTag = it },
+                                        placeholder = "e.g. video or webm",
+                                        testTag = "input_video_query_tag"
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 4.dp))
+                            FormSectionTitle("5. Server-Side Rating Tags (Optional)")
+                            Text(
+                                text = "Tags or keywords used by this API to filter content ratings (e.g. rating:g, rating:s, rating:e).",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    FormTextField(
+                                        label = "Safe Tag",
+                                        value = safeRatingTag,
+                                        onValueChange = { safeRatingTag = it },
+                                        placeholder = "e.g. rating:g",
+                                        testTag = "input_safe_rating_tag"
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    FormTextField(
+                                        label = "Suggestive Tag",
+                                        value = suggestiveRatingTag,
+                                        onValueChange = { suggestiveRatingTag = it },
+                                        placeholder = "e.g. rating:s,q",
+                                        testTag = "input_suggestive_rating_tag"
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    FormTextField(
+                                        label = "Adult Tag",
+                                        value = adultRatingTag,
+                                        onValueChange = { adultRatingTag = it },
+                                        placeholder = "e.g. rating:e",
+                                        testTag = "input_adult_rating_tag"
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 4.dp))
+                            FormSectionTitle("6. Authentication (Optional)")
                             FormTextField(
                                 label = "API Key / Token",
                                 value = apiKey,
@@ -600,6 +672,11 @@ fun AddSourceDialog(
                                             tagsField = template.tagsField
                                             ratingField = template.ratingField
                                             mediaTypeField = template.mediaTypeField
+                                            gifQueryTag = template.gifQueryTag
+                                            videoQueryTag = template.videoQueryTag
+                                            safeRatingTag = template.safeRatingTag
+                                            suggestiveRatingTag = template.suggestiveRatingTag
+                                            adultRatingTag = template.adultRatingTag
                                             selectedTab = 1 // Switch to manual config tab
                                         },
                                     colors = CardDefaults.cardColors(containerColor = DarkSurface)
@@ -706,6 +783,11 @@ fun AddSourceDialog(
                                     tagsField = tagsField,
                                     ratingField = ratingField,
                                     mediaTypeField = mediaTypeField,
+                                    gifQueryTag = gifQueryTag.trim(),
+                                    videoQueryTag = videoQueryTag.trim(),
+                                    safeRatingTag = safeRatingTag.trim(),
+                                    suggestiveRatingTag = suggestiveRatingTag.trim(),
+                                    adultRatingTag = adultRatingTag.trim(),
                                     apiKey = apiKey,
                                     apiKeyHeader = apiKeyHeader
                                 )
@@ -771,6 +853,11 @@ fun AddSourceDialog(
                                 tagsField = tagsField.trim(),
                                 ratingField = ratingField.trim(),
                                 mediaTypeField = mediaTypeField.trim(),
+                                gifQueryTag = gifQueryTag.trim(),
+                                videoQueryTag = videoQueryTag.trim(),
+                                safeRatingTag = safeRatingTag.trim(),
+                                suggestiveRatingTag = suggestiveRatingTag.trim(),
+                                adultRatingTag = adultRatingTag.trim(),
                                 apiKey = apiKey.trim(),
                                 apiKeyHeader = apiKeyHeader.trim(),
                                 isBuiltIn = false,
@@ -862,41 +949,60 @@ private const val SAMPLE_API_JSON = """{
 
 private val SOURCE_TEMPLATES = listOf(
     MediaSourceConfig(
-        name = "Wallhaven Showcase",
-        apiUrl = "https://wallhaven.cc/api/v1/search",
-        searchParam = "q",
-        pageParam = "page",
-        itemsPath = "data",
-        imageUrlField = "path",
-        thumbUrlField = "thumbs.small",
-        postUrlField = "url",
-        tagsField = "tags",
-        ratingField = "purity",
-        description = "Global high-definition wallpaper community and artwork archive."
-    ),
-    MediaSourceConfig(
-        name = "Safebooru Anime Archive",
+        name = "Safebooru Endpoint",
         apiUrl = "https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1",
         searchParam = "tags",
         pageParam = "pid",
+        pageStartsAt = 0,
         itemsPath = "",
         imageUrlField = "sample_url",
         thumbUrlField = "preview_url",
         postUrlField = "id",
         tagsField = "tags",
         ratingField = "rating",
-        description = "Large anime illustration board with comprehensive keyword tag searches."
+        gifQueryTag = "animated",
+        videoQueryTag = "",
+        safeRatingTag = "rating:general",
+        suggestiveRatingTag = "",
+        adultRatingTag = "",
+        description = "Public anime illustration archive with tag-based search."
     ),
     MediaSourceConfig(
-        name = "Art Institute of Chicago",
-        apiUrl = "https://api.artic.edu/api/v1/artworks/search",
-        searchParam = "q",
+        name = "Danbooru JSON API",
+        apiUrl = "https://danbooru.donmai.us/posts.json",
+        searchParam = "tags",
         pageParam = "page",
-        itemsPath = "data",
-        imageUrlField = "image_id",
-        thumbUrlField = "thumbnail.alt_text",
-        postUrlField = "api_link",
-        tagsField = "term_titles",
-        description = "Official museum art collection API with historical and modern masterpieces."
+        pageStartsAt = 1,
+        itemsPath = "",
+        imageUrlField = "file_url",
+        thumbUrlField = "preview_file_url",
+        postUrlField = "id",
+        tagsField = "tag_string",
+        ratingField = "rating",
+        gifQueryTag = "animated",
+        videoQueryTag = "webm",
+        safeRatingTag = "rating:g",
+        suggestiveRatingTag = "rating:s,q",
+        adultRatingTag = "rating:e",
+        description = "Standard Danbooru-compatible REST endpoint returning JSON post objects."
+    ),
+    MediaSourceConfig(
+        name = "Moebooru REST API",
+        apiUrl = "https://konachan.net/post.json",
+        searchParam = "tags",
+        pageParam = "page",
+        pageStartsAt = 1,
+        itemsPath = "",
+        imageUrlField = "file_url",
+        thumbUrlField = "preview_url",
+        postUrlField = "id",
+        tagsField = "tags",
+        ratingField = "rating",
+        gifQueryTag = "animated",
+        videoQueryTag = "",
+        safeRatingTag = "rating:s",
+        suggestiveRatingTag = "rating:q",
+        adultRatingTag = "rating:e",
+        description = "Moebooru format endpoint for anime wallpapers and illustrations."
     )
 )

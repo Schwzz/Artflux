@@ -5,6 +5,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.MediaApiClient
@@ -16,6 +17,7 @@ import com.example.model.MediaSourceConfig
 import com.example.model.MediaType
 import com.example.model.Orientation
 import com.example.model.SortOption
+import com.example.util.QueryBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +32,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     val sources: StateFlow<List<MediaSourceConfig>> = repository.sources
 
-    private val _activeSource = MutableStateFlow<MediaSourceConfig>(MediaSourceConfig.BUILT_IN_CURATED)
+    private val _activeSource = MutableStateFlow<MediaSourceConfig>(MediaSourceConfig.BUILT_IN_SAFEBOORU)
     val activeSource: StateFlow<MediaSourceConfig> = _activeSource.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
@@ -45,6 +47,11 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     val mediaItems: StateFlow<List<MediaItem>> = combine(_rawItems, _filterState) { items, filters ->
         var result = items
 
+        val totalRaw = items.size
+        val rawGifs = items.count { it.mediaType == MediaType.GIF }
+        val rawVideos = items.count { it.mediaType == MediaType.VIDEO }
+        Log.d("ArtfluxDebug", "Filter applied: rawTotal=$totalRaw (GIFs=$rawGifs, Videos=$rawVideos), activeFilter=${filters.mediaType}")
+
         // 1. Rating filter
         if (filters.rating != MediaRating.ALL) {
             result = result.filter { it.rating == filters.rating }
@@ -52,7 +59,14 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
         // 2. Media Type filter
         if (filters.mediaType != MediaType.ALL) {
-            result = result.filter { it.mediaType == filters.mediaType }
+            result = result.filter { item ->
+                when (filters.mediaType) {
+                    MediaType.IMAGE -> item.mediaType == MediaType.IMAGE
+                    MediaType.GIF -> item.mediaType == MediaType.GIF
+                    MediaType.VIDEO -> item.mediaType == MediaType.VIDEO
+                    else -> true
+                }
+            }
         }
 
         // 3. Orientation filter
@@ -76,6 +90,8 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
             SortOption.TOP_RATED -> result.sortedBy { it.rating == MediaRating.SAFE }
             SortOption.RANDOM -> result.shuffled()
         }
+
+        Log.d("ArtfluxDebug", "Remaining after active filter (${filters.mediaType}): ${result.size} items")
 
         result
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -124,8 +140,28 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         loadSourceData(source = source, query = _searchQuery.value, isRefresh = true)
     }
 
-    fun setFilterState(filters: FilterState) {
-        _filterState.value = filters
+    fun setFilterState(newFilters: FilterState) {
+        val oldFilters = _filterState.value
+        val oldEffectiveQuery = QueryBuilder.buildEffectiveQuery(
+            userQuery = _searchQuery.value,
+            source = _activeSource.value,
+            mediaType = oldFilters.mediaType,
+            rating = oldFilters.rating
+        )
+        val newEffectiveQuery = QueryBuilder.buildEffectiveQuery(
+            userQuery = _searchQuery.value,
+            source = _activeSource.value,
+            mediaType = newFilters.mediaType,
+            rating = newFilters.rating
+        )
+
+        _filterState.value = newFilters
+
+        // If the source-specific effective query changed, trigger a fresh page 1 load
+        if (oldEffectiveQuery != newEffectiveQuery) {
+            _rawItems.value = emptyList()
+            loadSourceData(source = _activeSource.value, query = _searchQuery.value, isRefresh = true)
+        }
     }
 
     fun loadSourceData(
@@ -145,7 +181,13 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
         viewModelScope.launch {
             val pageToFetch = if (isRefresh) 1 else currentPage
-            val result = apiClient.fetchMedia(source, query, pageToFetch)
+            val effectiveQuery = QueryBuilder.buildEffectiveQuery(
+                userQuery = query,
+                source = source,
+                mediaType = _filterState.value.mediaType,
+                rating = _filterState.value.rating
+            )
+            val result = apiClient.fetchMedia(source, effectiveQuery, pageToFetch)
 
             _isLoading.value = false
             _isLoadingMore.value = false
@@ -194,7 +236,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         repository.deleteSource(sourceId)
         if (_activeSource.value.id == sourceId) {
             val fallback = repository.sources.value.firstOrNull { it.isBuiltIn }
-                ?: MediaSourceConfig.BUILT_IN_CURATED
+                ?: MediaSourceConfig.BUILT_IN_SAFEBOORU
             setActiveSource(fallback)
         }
         _snackbarMessage.value = "Source removed."

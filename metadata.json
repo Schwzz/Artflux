@@ -1,6 +1,6 @@
 {
-  "name": "Media Browser",
-  "description": "General-purpose art and image browser with flexible custom API source configuration and AI setup.",
+  "name": "Artflux",
+  "description": "Anime Art Discovery",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

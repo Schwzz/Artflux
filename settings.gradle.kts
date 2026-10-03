@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Media Browser"
+rootProject.name = "Artflux"
 
 include(":app")

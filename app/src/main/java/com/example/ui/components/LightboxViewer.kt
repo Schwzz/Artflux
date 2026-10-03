@@ -2,7 +2,10 @@ package com.example.ui.components
 
 import android.content.Intent
 import android.net.Uri
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
+import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -52,14 +56,21 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem as Media3Item
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.model.MediaItem
 import com.example.model.MediaRating
+import com.example.model.MediaType
 import com.example.ui.theme.CardBorder
+import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.EmeraldSafe
@@ -70,8 +81,10 @@ import com.example.ui.theme.RoseBadge
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
+import com.example.util.ArtfluxImageLoader
 
-@OptIn(ExperimentalLayoutApi::class)
+@kotlin.OptIn(ExperimentalLayoutApi::class)
+@OptIn(UnstableApi::class)
 @Composable
 fun LightboxViewer(
     item: MediaItem,
@@ -86,7 +99,7 @@ fun LightboxViewer(
     val context = LocalContext.current
     var showInfoSheet by remember { mutableStateOf(false) }
 
-    // Pinch-to-zoom & pan states
+    // Pinch-to-zoom & pan states for images/GIFs
     var scale by remember(item.id) { mutableFloatStateOf(1f) }
     var offsetX by remember(item.id) { mutableFloatStateOf(0f) }
     var offsetY by remember(item.id) { mutableFloatStateOf(0f) }
@@ -102,57 +115,102 @@ fun LightboxViewer(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground.copy(alpha = 0.96f))
+            .background(DarkBackground.copy(alpha = 0.98f))
             .testTag("lightbox_viewer")
     ) {
-        // Main Image Area with Pinch-to-Zoom
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(item.id) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 5f)
-                        if (scale > 1f) {
-                            val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                            val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                            offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
-                            offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
-                        } else {
-                            offsetX = 0f
-                            offsetY = 0f
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(item.imageUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = item.title,
-                contentScale = ContentScale.Fit,
+        // Main Media Display: Video (ExoPlayer) or Image/GIF (Coil)
+        if (item.mediaType == MediaType.VIDEO) {
+            // Media3 / ExoPlayer Video Player
+            val exoPlayer = remember(item.id) {
+                ExoPlayer.Builder(context).build().apply {
+                    val media3Item = Media3Item.fromUri(Uri.parse(item.imageUrl))
+                    setMediaItem(media3Item)
+                    repeatMode = Player.REPEAT_MODE_ONE
+                    playWhenReady = true
+                    prepare()
+                }
+            }
+
+            DisposableEffect(item.id) {
+                onDispose {
+                    exoPlayer.stop()
+                    exoPlayer.release()
+                }
+            }
+
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(vertical = 60.dp, horizontal = 12.dp)
-                    .graphicsLayer(
-                        scaleX = scale,
-                        scaleY = scale,
-                        translationX = offsetX,
-                        translationY = offsetY
-                    ),
-                loading = {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = NeonIndigoLight,
-                            strokeWidth = 3.dp
-                        )
+                    .padding(vertical = 70.dp, horizontal = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            useController = true
+                            setShowNextButton(false)
+                            setShowPreviousButton(false)
+                            layoutParams = FrameLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else {
+            // Image / Animated GIF Display with Pinch-to-Zoom
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(item.id) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 5f)
+                            if (scale > 1f) {
+                                val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
+                                offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
+                            } else {
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(item.imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    imageLoader = ArtfluxImageLoader.get(context),
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 60.dp, horizontal = 12.dp)
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offsetX,
+                            translationY = offsetY
+                        ),
+                    loading = {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = NeonIndigoLight,
+                                strokeWidth = 3.dp
+                            )
+                        }
                     }
-                }
-            )
+                )
+            }
         }
 
         // Top Navigation & Action Bar
@@ -160,7 +218,7 @@ fun LightboxViewer(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .background(DarkBackground.copy(alpha = 0.8f))
+                .background(DarkBackground.copy(alpha = 0.85f))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -189,10 +247,36 @@ fun LightboxViewer(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+
+                // Media Type Badge in Top Bar
+                Spacer(modifier = Modifier.width(8.dp))
+                when (item.mediaType) {
+                    MediaType.GIF -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MagentaAccent)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("GIF", color = TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    MediaType.VIDEO -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(CyanAccent)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("VIDEO", color = DarkBackground, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    else -> {}
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Info Drawer Toggle
+                // Info Sheet Toggle
                 IconButton(
                     onClick = { showInfoSheet = !showInfoSheet },
                     modifier = Modifier
@@ -218,7 +302,7 @@ fun LightboxViewer(
                             putExtra(Intent.EXTRA_SUBJECT, item.title)
                             putExtra(Intent.EXTRA_TEXT, "${item.title} - ${item.imageUrl}")
                         }
-                        context.startActivity(Intent.createChooser(sendIntent, "Share Image Link"))
+                        context.startActivity(Intent.createChooser(sendIntent, "Share Media Link"))
                     },
                     modifier = Modifier
                         .size(40.dp)
@@ -228,7 +312,7 @@ fun LightboxViewer(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share image",
+                        contentDescription = "Share media",
                         tint = TextSecondary
                     )
                 }
@@ -246,7 +330,7 @@ fun LightboxViewer(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Download,
-                        contentDescription = "Download full image",
+                        contentDescription = "Download media file",
                         tint = TextPrimary
                     )
                 }
@@ -268,7 +352,7 @@ fun LightboxViewer(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Previous image",
+                    contentDescription = "Previous media",
                     tint = TextPrimary
                 )
             }
@@ -289,7 +373,7 @@ fun LightboxViewer(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Next image",
+                    contentDescription = "Next media",
                     tint = TextPrimary
                 )
             }
@@ -333,7 +417,7 @@ fun LightboxViewer(
                             }
                         }
 
-                        // Open in browser button if postUrl is available
+                        // Open post in browser
                         if (!item.postUrl.isNullOrBlank()) {
                             IconButton(
                                 onClick = {
@@ -385,8 +469,8 @@ fun LightboxViewer(
                         // Rating Chip
                         val (ratingColor, ratingText) = when (item.rating) {
                             MediaRating.SAFE -> Pair(EmeraldSafe, "SAFE")
-                            MediaRating.QUESTIONABLE -> Pair(Color(0xFFF59E0B), "QUESTIONABLE")
-                            MediaRating.EXPLICIT -> Pair(RoseBadge, "EXPLICIT")
+                            MediaRating.SUGGESTIVE -> Pair(Color(0xFFF59E0B), "SUGGESTIVE")
+                            MediaRating.ADULT -> Pair(RoseBadge, "ADULT")
                             else -> Pair(TextTertiary, "UNKNOWN")
                         }
                         Box(

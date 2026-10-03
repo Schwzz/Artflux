@@ -3,17 +3,21 @@ package com.example.model
 enum class MediaRating(val label: String) {
     ALL("All Ratings"),
     SAFE("Safe"),
-    QUESTIONABLE("Questionable"),
-    EXPLICIT("Explicit"),
-    UNKNOWN("Unknown")
+    SUGGESTIVE("Suggestive"),
+    ADULT("Adult"),
+    UNKNOWN("Unknown");
+
+    companion object {
+        val QUESTIONABLE: MediaRating get() = SUGGESTIVE
+        val EXPLICIT: MediaRating get() = ADULT
+    }
 }
 
 enum class MediaType(val label: String) {
     ALL("All Types"),
     IMAGE("Image"),
     GIF("GIF"),
-    VIDEO("Video"),
-    ART("Digital Art")
+    VIDEO("Video")
 }
 
 enum class Orientation(val label: String) {

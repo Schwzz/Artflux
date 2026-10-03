@@ -389,10 +389,8 @@ fun SourceItemCard(
 
 fun getSourceIcon(source: MediaSourceConfig): ImageVector {
     return when {
-        source.id.contains("curated") -> Icons.Default.Palette
-        source.id.contains("picsum") -> Icons.Default.PhotoLibrary
-        source.id.contains("artic") -> Icons.Default.Museum
-        source.id.contains("safebooru") -> Icons.Default.AutoAwesome
+        source.id.contains("safebooru") || source.name.contains("safebooru", true) -> Icons.Default.AutoAwesome
+        source.name.contains("danbooru", true) || source.name.contains("booru", true) -> Icons.Default.PhotoLibrary
         else -> Icons.Default.Dns
     }
 }

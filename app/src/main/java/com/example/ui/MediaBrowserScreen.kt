@@ -303,14 +303,14 @@ fun TopBrandHeader() {
 
         Column {
             Text(
-                text = "Media Browser",
+                text = "Artflux",
                 style = MaterialTheme.typography.titleMedium,
                 color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp
             )
             Text(
-                text = "Universal Art & Image Discovery",
+                text = "Anime Art Discovery",
                 color = TextTertiary,
                 fontSize = 11.sp
             )

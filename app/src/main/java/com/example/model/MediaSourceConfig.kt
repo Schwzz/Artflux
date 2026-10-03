@@ -11,22 +11,27 @@ data class MediaSourceConfig(
     val pageParam: String = "page",
     val pageStartsAt: Int = 1,
     val pageSizeParam: String = "limit",
-    val defaultPageSize: Int = 20,
+    val defaultPageSize: Int = 25,
     val apiKey: String = "",
     val apiKeyHeader: String = "",
     val apiKeyInQuery: Boolean = false,
     val apiKeyQueryParam: String = "api_key",
-    val itemsPath: String = "data",
-    val imageUrlField: String = "url",
-    val thumbUrlField: String = "thumbnail",
-    val postUrlField: String = "link",
+    val itemsPath: String = "",
+    val imageUrlField: String = "sample_url",
+    val thumbUrlField: String = "preview_url",
+    val postUrlField: String = "id",
     val tagsField: String = "tags",
     val ratingField: String = "rating",
-    val mediaTypeField: String = "media_type",
-    val titleField: String = "title",
-    val authorField: String = "author",
+    val mediaTypeField: String = "",
+    val titleField: String = "tags",
+    val authorField: String = "owner",
     val isBuiltIn: Boolean = false,
-    val description: String = ""
+    val description: String = "",
+    val gifQueryTag: String = "",
+    val videoQueryTag: String = "",
+    val safeRatingTag: String = "",
+    val suggestiveRatingTag: String = "",
+    val adultRatingTag: String = ""
 ) {
     fun toJson(): JSONObject {
         val json = JSONObject()
@@ -53,6 +58,11 @@ data class MediaSourceConfig(
         json.put("authorField", authorField)
         json.put("isBuiltIn", isBuiltIn)
         json.put("description", description)
+        json.put("gifQueryTag", gifQueryTag)
+        json.put("videoQueryTag", videoQueryTag)
+        json.put("safeRatingTag", safeRatingTag)
+        json.put("suggestiveRatingTag", suggestiveRatingTag)
+        json.put("adultRatingTag", adultRatingTag)
         return json
     }
 
@@ -66,81 +76,37 @@ data class MediaSourceConfig(
                 pageParam = json.optString("pageParam", "page"),
                 pageStartsAt = json.optInt("pageStartsAt", 1),
                 pageSizeParam = json.optString("pageSizeParam", "limit"),
-                defaultPageSize = json.optInt("defaultPageSize", 20),
+                defaultPageSize = json.optInt("defaultPageSize", 25),
                 apiKey = json.optString("apiKey", ""),
                 apiKeyHeader = json.optString("apiKeyHeader", ""),
                 apiKeyInQuery = json.optBoolean("apiKeyInQuery", false),
                 apiKeyQueryParam = json.optString("apiKeyQueryParam", "api_key"),
-                itemsPath = json.optString("itemsPath", "data"),
-                imageUrlField = json.optString("imageUrlField", "url"),
-                thumbUrlField = json.optString("thumbUrlField", "thumbnail"),
-                postUrlField = json.optString("postUrlField", "link"),
+                itemsPath = json.optString("itemsPath", ""),
+                imageUrlField = json.optString("imageUrlField", "sample_url"),
+                thumbUrlField = json.optString("thumbUrlField", "preview_url"),
+                postUrlField = json.optString("postUrlField", "id"),
                 tagsField = json.optString("tagsField", "tags"),
                 ratingField = json.optString("ratingField", "rating"),
-                mediaTypeField = json.optString("mediaTypeField", "media_type"),
-                titleField = json.optString("titleField", "title"),
-                authorField = json.optString("authorField", "author"),
+                mediaTypeField = json.optString("mediaTypeField", ""),
+                titleField = json.optString("titleField", "tags"),
+                authorField = json.optString("authorField", "owner"),
                 isBuiltIn = json.optBoolean("isBuiltIn", false),
-                description = json.optString("description", "")
+                description = json.optString("description", ""),
+                gifQueryTag = json.optString("gifQueryTag", ""),
+                videoQueryTag = json.optString("videoQueryTag", ""),
+                safeRatingTag = json.optString("safeRatingTag", ""),
+                suggestiveRatingTag = json.optString("suggestiveRatingTag", ""),
+                adultRatingTag = json.optString("adultRatingTag", "")
             )
         }
 
-        val BUILT_IN_CURATED = MediaSourceConfig(
-            id = "builtin_curated",
-            name = "Curated Art Showcase",
-            apiUrl = "internal://curated",
-            searchParam = "q",
-            pageParam = "page",
-            isBuiltIn = true,
-            description = "High-resolution digital paintings, concept art, 3D renders, and cyberpunk illustrations"
-        )
-
-        val BUILT_IN_PICSUM = MediaSourceConfig(
-            id = "builtin_picsum",
-            name = "Lorem Picsum Photos",
-            apiUrl = "https://picsum.photos/v2/list",
-            searchParam = "q",
-            pageParam = "page",
-            pageSizeParam = "limit",
-            defaultPageSize = 25,
-            itemsPath = "", // root array
-            imageUrlField = "download_url",
-            thumbUrlField = "download_url",
-            postUrlField = "url",
-            tagsField = "",
-            ratingField = "",
-            mediaTypeField = "",
-            titleField = "author",
-            authorField = "author",
-            isBuiltIn = true,
-            description = "High-resolution modern photography and scenic captures with infinite pagination"
-        )
-
-        val BUILT_IN_ARTIC = MediaSourceConfig(
-            id = "builtin_artic",
-            name = "Art Institute of Chicago",
-            apiUrl = "https://api.artic.edu/api/v1/artworks/search",
-            searchParam = "q",
-            pageParam = "page",
-            pageSizeParam = "limit",
-            defaultPageSize = 20,
-            itemsPath = "data",
-            imageUrlField = "image_id",
-            thumbUrlField = "thumbnail.alt_text",
-            postUrlField = "api_link",
-            tagsField = "term_titles",
-            titleField = "title",
-            authorField = "artist_title",
-            isBuiltIn = true,
-            description = "Renowned museum collection of historical paintings, sculptures, and fine art masterpieces"
-        )
-
         val BUILT_IN_SAFEBOORU = MediaSourceConfig(
             id = "builtin_safebooru",
-            name = "Safebooru Art",
+            name = "Safebooru",
             apiUrl = "https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1",
             searchParam = "tags",
             pageParam = "pid",
+            pageStartsAt = 0,
             pageSizeParam = "limit",
             defaultPageSize = 25,
             itemsPath = "",
@@ -152,14 +118,70 @@ data class MediaSourceConfig(
             titleField = "tags",
             authorField = "owner",
             isBuiltIn = true,
-            description = "Anime and digital illustration archive with tag-based search and rating classification"
+            description = "Safe anime illustration archive with tag-based search",
+            gifQueryTag = "animated",
+            videoQueryTag = "",
+            safeRatingTag = "rating:general",
+            suggestiveRatingTag = "",
+            adultRatingTag = ""
+        )
+
+        val BUILT_IN_DANBOORU = MediaSourceConfig(
+            id = "builtin_danbooru",
+            name = "Danbooru",
+            apiUrl = "https://danbooru.donmai.us/posts.json",
+            searchParam = "tags",
+            pageParam = "page",
+            pageStartsAt = 1,
+            pageSizeParam = "limit",
+            defaultPageSize = 25,
+            itemsPath = "",
+            imageUrlField = "file_url",
+            thumbUrlField = "preview_file_url",
+            postUrlField = "id",
+            tagsField = "tag_string",
+            ratingField = "rating",
+            titleField = "tag_string",
+            authorField = "tag_string_artist",
+            isBuiltIn = true,
+            description = "Premier anime image board with extensive tagging and ratings",
+            gifQueryTag = "animated",
+            videoQueryTag = "webm",
+            safeRatingTag = "rating:g",
+            suggestiveRatingTag = "rating:s,q",
+            adultRatingTag = "rating:e"
+        )
+
+        val BUILT_IN_YANDERE = MediaSourceConfig(
+            id = "builtin_yandere",
+            name = "Yande.re",
+            apiUrl = "https://yande.re/post.json",
+            searchParam = "tags",
+            pageParam = "page",
+            pageStartsAt = 1,
+            pageSizeParam = "limit",
+            defaultPageSize = 25,
+            itemsPath = "",
+            imageUrlField = "file_url",
+            thumbUrlField = "preview_url",
+            postUrlField = "id",
+            tagsField = "tags",
+            ratingField = "rating",
+            titleField = "tags",
+            authorField = "author",
+            isBuiltIn = true,
+            description = "High-resolution anime illustrations and scans",
+            gifQueryTag = "",
+            videoQueryTag = "",
+            safeRatingTag = "rating:s",
+            suggestiveRatingTag = "rating:q",
+            adultRatingTag = "rating:e"
         )
 
         val DEFAULT_SOURCES = listOf(
-            BUILT_IN_CURATED,
-            BUILT_IN_PICSUM,
-            BUILT_IN_ARTIC,
-            BUILT_IN_SAFEBOORU
+            BUILT_IN_SAFEBOORU,
+            BUILT_IN_DANBOORU,
+            BUILT_IN_YANDERE
         )
     }
 }

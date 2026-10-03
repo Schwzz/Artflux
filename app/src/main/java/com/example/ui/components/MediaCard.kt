@@ -9,17 +9,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Gif
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +48,7 @@ import coil.request.ImageRequest
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaType
+import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.EmeraldSafe
@@ -54,6 +58,7 @@ import com.example.ui.theme.RoseBadge
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
+import com.example.util.ArtfluxImageLoader
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -64,6 +69,17 @@ fun MediaCard(
     onTagClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val imageLoader = ArtfluxImageLoader.get(context)
+
+    // For GIFs, use the animated GIF URL so it animates in preview.
+    // For videos, always use the preview/thumbnail image.
+    val displayUrl = when (item.mediaType) {
+        MediaType.GIF -> item.imageUrl
+        MediaType.VIDEO -> item.thumbnailUrl
+        else -> item.thumbnailUrl
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -84,10 +100,11 @@ fun MediaCard(
                 .background(Color(0xFF131A29))
         ) {
             SubcomposeAsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(item.thumbnailUrl)
+                model = ImageRequest.Builder(context)
+                    .data(displayUrl)
                     .crossfade(true)
                     .build(),
+                imageLoader = imageLoader,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -132,6 +149,26 @@ fun MediaCard(
                 }
             )
 
+            // Centered Play Button overlay for Videos
+            if (item.mediaType == MediaType.VIDEO) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(DarkBackground.copy(alpha = 0.75f))
+                        .border(1.dp, CyanAccent, CircleShape)
+                        .align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play video",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+
             // Top Badges Row
             Row(
                 modifier = Modifier
@@ -141,29 +178,58 @@ fun MediaCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Media Type Badge
-                if (item.mediaType != MediaType.IMAGE) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(DarkBackground.copy(alpha = 0.85f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = item.mediaType.label,
-                            color = MagentaAccent,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                when (item.mediaType) {
+                    MediaType.GIF -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MagentaAccent.copy(alpha = 0.9f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "GIF",
+                                    color = TextPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
                     }
-                } else {
-                    Box(modifier = Modifier.size(1.dp))
+                    MediaType.VIDEO -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(CyanAccent.copy(alpha = 0.9f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = DarkBackground,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "VIDEO",
+                                    color = DarkBackground,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        Box(modifier = Modifier.size(1.dp))
+                    }
                 }
 
                 // Rating Badge
                 val (ratingColor, ratingText) = when (item.rating) {
                     MediaRating.SAFE -> Pair(EmeraldSafe, "SAFE")
-                    MediaRating.QUESTIONABLE -> Pair(Color(0xFFF59E0B), "QUEST")
-                    MediaRating.EXPLICIT -> Pair(RoseBadge, "18+")
+                    MediaRating.SUGGESTIVE -> Pair(Color(0xFFF59E0B), "SUGG")
+                    MediaRating.ADULT -> Pair(RoseBadge, "18+")
                     else -> Pair(TextTertiary, "")
                 }
                 if (ratingText.isNotBlank()) {
@@ -244,7 +310,7 @@ fun MediaCard(
                         }
                     }
 
-                    // First 2 tags if present
+                    // First 3 tags if present
                     if (item.tags.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier
