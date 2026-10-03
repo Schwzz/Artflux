@@ -19,8 +19,3 @@ local.properties
 .env
 .env.local
 debug.keystore
-
-# Backend
-backend/node_modules/
-backend/dist/
-backend/.env

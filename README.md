@@ -18,8 +18,8 @@
   * Dark obsidian aesthetic with neon indigo, cyan, and magenta accents.
   * Staggered/masonry grid with smooth infinite scrolling and pull-to-refresh.
   * Interactive Lightbox viewer with high-resolution zooming, video playback via Media3/ExoPlayer, metadata inspector, and image downloads.
-* **AI Configuration**:
-  * Gemini AI-assisted custom API endpoint analysis and auto-configuration.
+* **Custom Source Engine**:
+  * Manual custom source configuration and quick-apply templates (Safebooru, Danbooru, Moebooru).
 
 ---
 

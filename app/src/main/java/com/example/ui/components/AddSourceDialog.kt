@@ -63,7 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.example.data.GeminiAiSetupService
 import com.example.data.MediaApiClient
 import com.example.model.MediaSourceConfig
 import com.example.ui.theme.CardBorder
@@ -86,9 +85,8 @@ fun AddSourceDialog(
     onDismiss: () -> Unit,
     onSave: (MediaSourceConfig) -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: AI Setup, 1: Manual, 2: Templates
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Manual Config, 1: Templates
     val coroutineScope = rememberCoroutineScope()
-    val aiService = remember { GeminiAiSetupService() }
     val apiClient = remember { MediaApiClient() }
 
     // Form fields
@@ -110,12 +108,6 @@ fun AddSourceDialog(
     var adultRatingTag by remember { mutableStateOf(initialConfig?.adultRatingTag ?: "") }
     var apiKey by remember { mutableStateOf(initialConfig?.apiKey ?: "") }
     var apiKeyHeader by remember { mutableStateOf(initialConfig?.apiKeyHeader ?: "") }
-
-    // AI Setup state
-    var aiInputText by remember { mutableStateOf("") }
-    var isAnalyzingAi by remember { mutableStateOf(false) }
-    var aiErrorMessage by remember { mutableStateOf<String?>(null) }
-    var aiSuccessMessage by remember { mutableStateOf<String?>(null) }
 
     // Testing state
     var isTestingSource by remember { mutableStateOf(false) }
@@ -175,7 +167,7 @@ fun AddSourceDialog(
                     }
                 }
 
-                // Tabs: AI Setup, Manual Form, Quick Templates
+                // Tabs: Manual Form, Quick Templates
                 TabRow(
                     selectedTabIndex = selectedTab,
                     containerColor = DarkSurface,
@@ -196,13 +188,13 @@ fun AddSourceDialog(
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
+                                    imageVector = Icons.Default.Tune,
                                     contentDescription = null,
                                     tint = if (selectedTab == 0) NeonIndigoLight else TextSecondary,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("AI Setup", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Manual Config", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     )
@@ -212,25 +204,9 @@ fun AddSourceDialog(
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = null,
-                                    tint = if (selectedTab == 1) NeonIndigoLight else TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Manual Config", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ViewList,
                                     contentDescription = null,
-                                    tint = if (selectedTab == 2) NeonIndigoLight else TextSecondary,
+                                    tint = if (selectedTab == 1) NeonIndigoLight else TextSecondary,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -251,203 +227,6 @@ fun AddSourceDialog(
                 ) {
                     when (selectedTab) {
                         0 -> {
-                            // --- AI Setup Tab ---
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                                shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = NeonIndigoLight,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Smart AI Source Analyzer",
-                                            color = TextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp
-                                        )
-                                    }
-
-                                    Text(
-                                        text = "Paste API documentation or an example JSON response below. Gemini AI analyzes the schema and auto-populates all field mappings for you.",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                                    )
-
-                                    OutlinedTextField(
-                                        value = aiInputText,
-                                        onValueChange = {
-                                            aiInputText = it
-                                            aiErrorMessage = null
-                                            aiSuccessMessage = null
-                                        },
-                                        placeholder = {
-                                            Text(
-                                                text = "Paste JSON response, curl command, or API docs here...\n\nExample:\n{\n  \"data\": [\n    {\n      \"id\": 101,\n      \"url\": \"https://...\",\n      \"thumbnail\": \"https://...\",\n      \"tags\": [\"art\", \"cyberpunk\"]\n    }\n  ]\n}",
-                                                color = TextTertiary,
-                                                fontSize = 12.sp
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(200.dp)
-                                            .testTag("ai_input_text_field"),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedContainerColor = Color(0xFF0F1523),
-                                            unfocusedContainerColor = Color(0xFF0F1523),
-                                            focusedBorderColor = NeonIndigo,
-                                            unfocusedBorderColor = CardBorder,
-                                            focusedTextColor = TextPrimary,
-                                            unfocusedTextColor = TextPrimary
-                                        )
-                                    )
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    // Quick Sample Paste and Analyze buttons
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                aiInputText = SAMPLE_API_JSON
-                                            },
-                                            shape = RoundedCornerShape(8.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.ContentPaste,
-                                                contentDescription = null,
-                                                tint = CyanAccent,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Paste Sample JSON", color = CyanAccent, fontSize = 11.sp)
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                coroutineScope.launch {
-                                                    isAnalyzingAi = true
-                                                    aiErrorMessage = null
-                                                    aiSuccessMessage = null
-                                                    val result = aiService.analyzeApiSpecOrJson(aiInputText)
-                                                    isAnalyzingAi = false
-                                                    result.onSuccess { parsed ->
-                                                        sourceName = parsed.name
-                                                        apiUrl = parsed.apiUrl
-                                                        searchParam = parsed.searchParam
-                                                        pageParam = parsed.pageParam
-                                                        itemsPath = parsed.itemsPath
-                                                        imageUrlField = parsed.imageUrlField
-                                                        thumbUrlField = parsed.thumbUrlField
-                                                        postUrlField = parsed.postUrlField
-                                                        tagsField = parsed.tagsField
-                                                        ratingField = parsed.ratingField
-                                                        mediaTypeField = parsed.mediaTypeField
-                                                        aiSuccessMessage = "Successfully generated configuration for '${parsed.name}'! Switch to Manual Config tab to review or click Save below."
-                                                    }.onFailure { err ->
-                                                        aiErrorMessage = err.message ?: "Failed to analyze structure."
-                                                    }
-                                                }
-                                            },
-                                            enabled = !isAnalyzingAi && aiInputText.isNotBlank(),
-                                            colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.testTag("ai_analyze_button")
-                                        ) {
-                                            if (isAnalyzingAi) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(16.dp),
-                                                    color = TextPrimary,
-                                                    strokeWidth = 2.dp
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Analyzing...", fontSize = 12.sp)
-                                            } else {
-                                                Icon(
-                                                    imageVector = Icons.Default.AutoAwesome,
-                                                    contentDescription = null,
-                                                    tint = TextPrimary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text("Analyze with AI", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
-
-                                    // Status alerts
-                                    if (aiSuccessMessage != null) {
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 10.dp),
-                                            colors = CardDefaults.cardColors(containerColor = EmeraldSafe.copy(alpha = 0.15f)),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldSafe)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CheckCircle,
-                                                    contentDescription = null,
-                                                    tint = EmeraldSafe,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = aiSuccessMessage!!,
-                                                    color = TextPrimary,
-                                                    fontSize = 12.sp
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    if (aiErrorMessage != null) {
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 10.dp),
-                                            colors = CardDefaults.cardColors(containerColor = RoseBadge.copy(alpha = 0.15f)),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, RoseBadge)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Error,
-                                                    contentDescription = null,
-                                                    tint = RoseBadge,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = aiErrorMessage!!,
-                                                    color = TextPrimary,
-                                                    fontSize = 12.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        1 -> {
                             // --- Manual Configuration Form ---
                             FormSectionTitle("1. Basic Information")
                             FormTextField(
@@ -646,7 +425,7 @@ fun AddSourceDialog(
                             )
                         }
 
-                        2 -> {
+                        1 -> {
                             // --- Quick Templates Tab ---
                             Text(
                                 text = "Select a pre-made source template to immediately populate the configuration fields:",
@@ -677,7 +456,7 @@ fun AddSourceDialog(
                                             safeRatingTag = template.safeRatingTag
                                             suggestiveRatingTag = template.suggestiveRatingTag
                                             adultRatingTag = template.adultRatingTag
-                                            selectedTab = 1 // Switch to manual config tab
+                                            selectedTab = 0 // Switch to manual config tab
                                         },
                                     colors = CardDefaults.cardColors(containerColor = DarkSurface)
                                 ) {
@@ -929,23 +708,6 @@ fun FormTextField(
         )
     }
 }
-
-private const val SAMPLE_API_JSON = """{
-  "total": 540,
-  "data": [
-    {
-      "id": "item_901",
-      "name": "Cybernetic Sakura Blossom",
-      "path": "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=1200",
-      "preview": "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?q=80&w=400",
-      "post_url": "https://example.com/art/901",
-      "tags": ["cyberpunk", "japan", "neon", "cherry-blossom"],
-      "purity": "safe",
-      "type": "illustration",
-      "author": "Kenji Takahashi"
-    }
-  ]
-}"""
 
 private val SOURCE_TEMPLATES = listOf(
     MediaSourceConfig(
