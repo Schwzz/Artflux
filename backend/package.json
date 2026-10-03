@@ -1,0 +1,19 @@
+{
+  "name": "artflux-ai-backend",
+  "version": "1.0.0",
+  "description": "Secure serverless backend proxy for Artflux AI source analysis using Gemini API",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "private": true
+}

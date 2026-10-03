@@ -12,11 +12,31 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class GeminiAiSetupService {
+class GeminiAiSetupService(
+    private val customBackendUrl: String? = null
+) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    // Resolves backend proxy URL from constructor or BuildConfig (without credentials)
+    private val backendBaseUrl: String by lazy {
+        if (!customBackendUrl.isNullOrBlank()) {
+            customBackendUrl.trim().removeSuffix("/")
+        } else {
+            getBackendUrlFromBuildConfig().removeSuffix("/")
+        }
+    }
+
+    private fun getBackendUrlFromBuildConfig(): String {
+        return try {
+            val field = BuildConfig::class.java.getField("ARTFLUX_AI_BACKEND_URL")
+            (field.get(null) as? String)?.trim().orEmpty()
+        } catch (_: Throwable) {
+            ""
+        }
+    }
 
     suspend fun analyzeApiSpecOrJson(input: String): Result<MediaSourceConfig> = withContext(Dispatchers.IO) {
         val trimmed = input.trim()
@@ -24,92 +44,47 @@ class GeminiAiSetupService {
             return@withContext Result.failure(IllegalArgumentException("Please paste API documentation or an example JSON response."))
         }
 
-        // Check if Gemini API Key is available
-        val apiKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Throwable) {
-            ""
-        }
-
-        if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
+        // 1. Try secure serverless backend proxy if configured
+        if (backendBaseUrl.isNotBlank() && (backendBaseUrl.startsWith("http://") || backendBaseUrl.startsWith("https://"))) {
             try {
-                val config = callGeminiApi(apiKey, trimmed)
-                if (config != null) {
-                    return@withContext Result.success(config)
+                val serverConfig = callBackendProxy(backendBaseUrl, trimmed)
+                if (serverConfig != null) {
+                    return@withContext Result.success(serverConfig)
                 }
-            } catch (e: Exception) {
-                // If Gemini call fails, fallback to local heuristic parser
-                e.printStackTrace()
+            } catch (_: Exception) {
+                // Backend proxy error or unreachable; gracefully fallback to local heuristic analyzer
             }
         }
 
-        // Local smart heuristic analyzer fallback
+        // 2. Local smart heuristic analyzer fallback
         val heuristicConfig = analyzeWithHeuristics(trimmed)
         if (heuristicConfig != null) {
             return@withContext Result.success(heuristicConfig)
         }
 
-        Result.failure(Exception("Unable to automatically detect API structure. Please review the manual fields or check your Gemini API key in Secrets."))
+        Result.failure(
+            Exception(
+                if (backendBaseUrl.isBlank()) {
+                    "Unable to automatically detect API structure from input. Please review manual fields or configure ARTFLUX_AI_BACKEND_URL."
+                } else {
+                    "Backend AI analysis unavailable and local heuristic detection could not find valid items. Please verify manual fields."
+                }
+            )
+        )
     }
 
-    private fun callGeminiApi(apiKey: String, input: String): MediaSourceConfig? {
-        val endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
-
-        val systemPrompt = """
-            You are an API integration engineer. The user is configuring an image/art media browser source.
-            Analyze the provided API documentation or example JSON response.
-            Extract or infer the fields required to query and parse the API.
-            Do NOT write executable code or scripts. Output valid JSON only with exactly these string keys:
-            {
-              "sourceName": "A concise name for the source",
-              "apiUrl": "Base HTTP GET endpoint URL to search or list media items",
-              "searchParam": "Query parameter name for search keywords (e.g. q, query, tags, or empty)",
-              "pageParam": "Query parameter name for pagination (e.g. page, p, offset, or empty)",
-              "itemsPath": "JSON path to the array containing items (e.g. data, results, images, or empty if root is array)",
-              "imageUrlField": "JSON path for the full-resolution image URL (e.g. url, file_url, path, download_url)",
-              "thumbUrlField": "JSON path for the thumbnail URL (e.g. thumbnail, preview_url, thumb)",
-              "postUrlField": "JSON path for post or webpage URL (e.g. link, url, id, short_url)",
-              "tagsField": "JSON path for tags list or string (e.g. tags, labels)",
-              "ratingField": "JSON path for content rating (e.g. rating, purity)",
-              "mediaTypeField": "JSON path for media type (e.g. type, file_type)",
-              "titleField": "JSON path for title (e.g. title, name, description)",
-              "authorField": "JSON path for creator/artist (e.g. author, user.name, artist)",
-              "description": "Brief summary of what this source provides"
-            }
-        """.trimIndent()
+    private fun callBackendProxy(baseUrl: String, input: String): MediaSourceConfig? {
+        val endpoint = "$baseUrl/api/analyze-source"
 
         val requestJson = JSONObject().apply {
-            val contentsArray = JSONArray().apply {
-                put(JSONObject().apply {
-                    val partsArray = JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("text", "Input to analyze:\n\n$input")
-                        })
-                    }
-                    put("parts", partsArray)
-                })
-            }
-            put("contents", contentsArray)
-
-            val systemInstruction = JSONObject().apply {
-                val parts = JSONArray().apply {
-                    put(JSONObject().apply { put("text", systemPrompt) })
-                }
-                put("parts", parts)
-            }
-            put("systemInstruction", systemInstruction)
-
-            val genConfig = JSONObject().apply {
-                put("responseMimeType", "application/json")
-                put("temperature", 0.1)
-            }
-            put("generationConfig", genConfig)
+            put("input", input)
         }
 
         val requestBody = requestJson.toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
             .url(endpoint)
             .post(requestBody)
+            .header("Accept", "application/json")
             .build()
 
         val response = client.newCall(request).execute()
@@ -118,15 +93,9 @@ class GeminiAiSetupService {
         }
 
         val responseBody = response.body?.string().orEmpty()
-        val root = JSONObject(responseBody)
-        val text = root.optJSONArray("candidates")
-            ?.optJSONObject(0)
-            ?.optJSONObject("content")
-            ?.optJSONArray("parts")
-            ?.optJSONObject(0)
-            ?.optString("text") ?: return null
+        if (responseBody.isBlank()) return null
 
-        val parsed = JSONObject(text.trim())
+        val parsed = JSONObject(responseBody)
         return MediaSourceConfig(
             name = parsed.optString("sourceName", "AI Configured Source").ifBlank { "AI Configured Source" },
             apiUrl = parsed.optString("apiUrl", "https://api.example.com/v1/search"),
@@ -146,7 +115,7 @@ class GeminiAiSetupService {
         )
     }
 
-    private fun analyzeWithHeuristics(input: String): MediaSourceConfig? {
+    fun analyzeWithHeuristics(input: String): MediaSourceConfig? {
         try {
             var itemsArray: JSONArray? = null
             var itemsPath = ""
@@ -213,7 +182,7 @@ class GeminiAiSetupService {
                     isBuiltIn = false
                 )
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Not a direct JSON response, maybe documentation text
         }
         return null

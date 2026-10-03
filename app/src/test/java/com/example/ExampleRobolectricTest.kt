@@ -352,4 +352,55 @@ class ExampleRobolectricTest {
     assertTrue(mediaTypes.contains("VIDEO"))
     assertFalse(mediaTypes.contains("ART"))
   }
+
+  // --- 7. Gemini AI Setup Service & Security Verification ---
+
+  @Test
+  fun testAndroidClientContainsNoGeminiApiKeyInBuildConfig() {
+    val fields = com.example.BuildConfig::class.java.declaredFields.map { it.name }
+    assertFalse(
+      "BuildConfig must NOT contain GEMINI_API_KEY",
+      fields.contains("GEMINI_API_KEY")
+    )
+  }
+
+  @Test
+  fun testGeminiAiSetupServiceHeuristicFallbackOnSampleJson() = kotlinx.coroutines.runBlocking {
+    val service = com.example.data.GeminiAiSetupService()
+    val sampleJson = """
+      {
+        "posts": [
+          {
+            "id": 101,
+            "file_url": "https://cdn.example.com/art.jpg",
+            "preview_url": "https://cdn.example.com/thumb.jpg",
+            "source_url": "https://example.com/posts/101",
+            "tags": "scenery landscape anime",
+            "rating": "safe",
+            "title": "Misty Forest"
+          }
+        ]
+      }
+    """.trimIndent()
+
+    val result = service.analyzeApiSpecOrJson(sampleJson)
+    assertTrue(result.isSuccess)
+    val config = result.getOrNull()
+    assertNotNull(config)
+    assertEquals("posts", config?.itemsPath)
+    assertEquals("file_url", config?.imageUrlField)
+    assertEquals("preview_url", config?.thumbUrlField)
+    assertEquals("source_url", config?.postUrlField)
+    assertEquals("tags", config?.tagsField)
+    assertEquals("rating", config?.ratingField)
+    assertEquals("title", config?.titleField)
+  }
+
+  @Test
+  fun testGeminiAiSetupServiceEmptyInputFailsSafely() = kotlinx.coroutines.runBlocking {
+    val service = com.example.data.GeminiAiSetupService()
+    val result = service.analyzeApiSpecOrJson("   ")
+    assertTrue(result.isFailure)
+  }
 }
+
