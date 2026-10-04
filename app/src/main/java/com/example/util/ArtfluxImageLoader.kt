@@ -7,6 +7,8 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 object ArtfluxImageLoader {
     @Volatile
@@ -15,6 +17,18 @@ object ArtfluxImageLoader {
     fun get(context: Context): ImageLoader {
         return instance ?: synchronized(this) {
             instance ?: ImageLoader.Builder(context.applicationContext)
+                .okHttpClient {
+                    OkHttpClient.Builder()
+                        .connectTimeout(15, TimeUnit.SECONDS)
+                        .readTimeout(20, TimeUnit.SECONDS)
+                        .addInterceptor { chain ->
+                            val request = chain.request().newBuilder()
+                                .header("User-Agent", "ArtfluxApp/1.0 (Android; BooruDiscovery)")
+                                .build()
+                            chain.proceed(request)
+                        }
+                        .build()
+                }
                 .components {
                     if (Build.VERSION.SDK_INT >= 28) {
                         add(ImageDecoderDecoder.Factory())
@@ -30,7 +44,7 @@ object ArtfluxImageLoader {
                 .diskCache {
                     DiskCache.Builder()
                         .directory(context.applicationContext.cacheDir.resolve("image_cache"))
-                        .maxSizeBytes(100L * 1024 * 1024) // 100MB
+                        .maxSizeBytes(150L * 1024 * 1024) // 150MB
                         .build()
                 }
                 .crossfade(true)

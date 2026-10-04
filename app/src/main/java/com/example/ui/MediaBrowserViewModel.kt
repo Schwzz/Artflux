@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.MediaApiClient
 import com.example.data.PreferencesRepository
 import com.example.data.SourceRepository
+import com.example.model.AppTheme
+import com.example.model.DownloadQuality
 import com.example.model.FilterState
 import com.example.model.MediaItem
 import com.example.model.MediaRating
@@ -48,7 +50,8 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     val sources: StateFlow<List<MediaSourceConfig>> = repository.sources
 
     // --- Preferences (Persistent) ---
-    val isDarkAmoledTheme: StateFlow<Boolean> = preferencesRepository.isDarkAmoled
+    val theme: StateFlow<AppTheme> = preferencesRepository.theme
+    val blurNsfw: StateFlow<Boolean> = preferencesRepository.blurNsfw
     val thumbnailQuality: StateFlow<ThumbnailQuality> = preferencesRepository.thumbnailQuality
     val loopVideoPlayback: StateFlow<Boolean> = preferencesRepository.loopVideo
 
@@ -78,6 +81,9 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val _isSourcePickerOpen = MutableStateFlow(false)
     val isSourcePickerOpen: StateFlow<Boolean> = _isSourcePickerOpen.asStateFlow()
     private var sourcePickerTarget: String = "home" // "home" or "search"
+
+    private val _downloadTargetItem = MutableStateFlow<MediaItem?>(null)
+    val downloadTargetItem: StateFlow<MediaItem?> = _downloadTargetItem.asStateFlow()
 
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
@@ -129,8 +135,12 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     // PREFERENCES MANAGEMENT
     // ==========================================
 
-    fun setDarkAmoledTheme(enabled: Boolean) {
-        preferencesRepository.setDarkAmoled(enabled)
+    fun setTheme(newTheme: AppTheme) {
+        preferencesRepository.setTheme(newTheme)
+    }
+
+    fun setBlurNsfw(enabled: Boolean) {
+        preferencesRepository.setBlurNsfw(enabled)
     }
 
     fun setThumbnailQuality(quality: ThumbnailQuality) {
@@ -614,27 +624,48 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     // ==========================================
-    // DOWNLOAD & UTILS
+    // DOWNLOAD & PROMPT CONFIGURATION
     // ==========================================
 
+    fun promptDownload(item: MediaItem) {
+        _downloadTargetItem.value = item
+    }
+
+    fun dismissDownloadPrompt() {
+        _downloadTargetItem.value = null
+    }
+
     fun downloadImage(item: MediaItem) {
+        promptDownload(item)
+    }
+
+    fun downloadMediaWithQuality(item: MediaItem, quality: DownloadQuality) {
+        _downloadTargetItem.value = null
         try {
             val context = getApplication<Application>().applicationContext
-            val uri = Uri.parse(item.imageUrl)
+            val targetUrl = item.getDownloadUrl(quality)
+            val uri = Uri.parse(targetUrl)
+
+            val extension = when (item.mediaType) {
+                MediaType.GIF -> "gif"
+                MediaType.VIDEO -> item.fileExt?.takeIf { it in listOf("mp4", "webm", "mkv", "mov") } ?: "mp4"
+                else -> item.fileExt ?: "jpg"
+            }
+
             val request = DownloadManager.Request(uri).apply {
-                setTitle(item.title)
+                setTitle("${item.title} [${quality.label}]")
                 setDescription("Downloading from ${item.sourceName}")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_PICTURES,
-                    "MediaBrowser_${System.currentTimeMillis()}.${item.fileExt ?: "jpg"}"
+                    "MediaBrowser_${System.currentTimeMillis()}.$extension"
                 )
                 setAllowedOverMetered(true)
                 setAllowedOverRoaming(true)
             }
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
             downloadManager?.enqueue(request)
-            _snackbarMessage.value = "Download started for '${item.title}'"
+            _snackbarMessage.value = "Downloading '${item.title}' (${quality.label})"
         } catch (e: Exception) {
             _snackbarMessage.value = "Download error: ${e.message}"
         }

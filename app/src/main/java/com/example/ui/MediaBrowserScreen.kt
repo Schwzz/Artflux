@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,8 +41,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -73,7 +70,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,6 +85,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.model.AppTheme
 import com.example.model.FilterState
 import com.example.model.MediaItem
 import com.example.model.MediaRating
@@ -98,6 +95,7 @@ import com.example.model.Orientation
 import com.example.model.SortOption
 import com.example.model.ThumbnailQuality
 import com.example.ui.components.AddSourceDialog
+import com.example.ui.components.DownloadConfigDialog
 import com.example.ui.components.LightboxViewer
 import com.example.ui.components.MediaCard
 import com.example.ui.components.PRESET_TAGS
@@ -112,7 +110,6 @@ import com.example.ui.theme.RoseBadge
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
-import kotlinx.coroutines.launch
 
 enum class MainTab {
     HOME, SEARCH, SETTINGS
@@ -127,7 +124,8 @@ fun MediaBrowserScreen(
     val sources by viewModel.sources.collectAsStateWithLifecycle()
     val homeState by viewModel.homeState.collectAsStateWithLifecycle()
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
-    val isDarkAmoled by viewModel.isDarkAmoledTheme.collectAsStateWithLifecycle()
+    val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val blurNsfw by viewModel.blurNsfw.collectAsStateWithLifecycle()
     val thumbnailQuality by viewModel.thumbnailQuality.collectAsStateWithLifecycle()
     val loopVideo by viewModel.loopVideoPlayback.collectAsStateWithLifecycle()
 
@@ -135,6 +133,7 @@ fun MediaBrowserScreen(
     val lightboxItems by viewModel.lightboxItems.collectAsStateWithLifecycle()
     val isAddSourceOpen by viewModel.isAddSourceOpen.collectAsStateWithLifecycle()
     val isSourcePickerOpen by viewModel.isSourcePickerOpen.collectAsStateWithLifecycle()
+    val downloadTargetItem by viewModel.downloadTargetItem.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
 
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
@@ -204,6 +203,7 @@ fun MediaBrowserScreen(
                     HomeScreen(
                         homeState = homeState,
                         thumbnailQuality = thumbnailQuality,
+                        blurNsfw = blurNsfw,
                         gridState = homeGridState,
                         onOpenFeedSettings = { isHomeSettingsOpen = true },
                         onRefresh = { viewModel.refreshHome() },
@@ -215,7 +215,7 @@ fun MediaBrowserScreen(
                         onOpenLightbox = { index ->
                             viewModel.openLightbox(index, homeState.mediaItems)
                         },
-                        onDownload = { viewModel.downloadImage(it) },
+                        onDownload = { viewModel.promptDownload(it) },
                         onTagClick = { tag ->
                             currentTab = MainTab.SEARCH
                             viewModel.setSearchQuery(tag)
@@ -228,6 +228,7 @@ fun MediaBrowserScreen(
                         searchState = searchState,
                         sources = sources,
                         thumbnailQuality = thumbnailQuality,
+                        blurNsfw = blurNsfw,
                         gridState = searchGridState,
                         onQueryChange = { viewModel.setSearchQuery(it) },
                         onSearch = { viewModel.executeSearchQuery() },
@@ -244,7 +245,7 @@ fun MediaBrowserScreen(
                         onOpenLightbox = { index ->
                             viewModel.openLightbox(index, searchState.mediaItems)
                         },
-                        onDownload = { viewModel.downloadImage(it) },
+                        onDownload = { viewModel.promptDownload(it) },
                         onTagClick = { tag ->
                             viewModel.setSearchQuery(tag)
                             viewModel.executeSearchQuery()
@@ -254,8 +255,10 @@ fun MediaBrowserScreen(
                 MainTab.SETTINGS -> {
                     SettingsScreen(
                         sources = sources,
-                        isDarkAmoled = isDarkAmoled,
-                        onDarkAmoledChange = { viewModel.setDarkAmoledTheme(it) },
+                        theme = theme,
+                        onThemeChange = { viewModel.setTheme(it) },
+                        blurNsfw = blurNsfw,
+                        onBlurNsfwChange = { viewModel.setBlurNsfw(it) },
                         thumbnailQuality = thumbnailQuality,
                         onThumbnailQualityChange = { viewModel.setThumbnailQuality(it) },
                         loopVideo = loopVideo,
@@ -266,6 +269,19 @@ fun MediaBrowserScreen(
                 }
             }
         }
+    }
+
+    // Download Configuration Prompt Dialog
+    downloadTargetItem?.let { targetItem ->
+        DownloadConfigDialog(
+            item = targetItem,
+            onConfirm = { quality ->
+                viewModel.downloadMediaWithQuality(targetItem, quality)
+            },
+            onDismiss = {
+                viewModel.dismissDownloadPrompt()
+            }
+        )
     }
 
     // Home Feed Settings / Filter Bottom Sheet
@@ -325,7 +341,7 @@ fun MediaBrowserScreen(
                 onPrevious = { viewModel.previousLightboxItem() },
                 onNext = { viewModel.nextLightboxItem() },
                 onClose = { viewModel.closeLightbox() },
-                onDownload = { viewModel.downloadImage(currentItem) },
+                onDownload = { viewModel.promptDownload(currentItem) },
                 onTagClick = { tag ->
                     currentTab = MainTab.SEARCH
                     viewModel.setSearchQuery(tag)
@@ -395,6 +411,7 @@ fun ArtfluxBottomBar(
 fun HomeScreen(
     homeState: FeedState,
     thumbnailQuality: ThumbnailQuality,
+    blurNsfw: Boolean = false,
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
     onOpenFeedSettings: () -> Unit,
     onRefresh: () -> Unit,
@@ -525,6 +542,7 @@ fun HomeScreen(
                                 MediaCard(
                                     item = item,
                                     quality = thumbnailQuality,
+                                    blurNsfw = blurNsfw,
                                     onClick = { onOpenLightbox(index) },
                                     onDownloadClick = { onDownload(item) },
                                     onTagClick = onTagClick
@@ -561,6 +579,7 @@ fun SearchScreen(
     searchState: FeedState,
     sources: List<MediaSourceConfig>,
     thumbnailQuality: ThumbnailQuality,
+    blurNsfw: Boolean = false,
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
@@ -851,6 +870,7 @@ fun SearchScreen(
                                 MediaCard(
                                     item = item,
                                     quality = thumbnailQuality,
+                                    blurNsfw = blurNsfw,
                                     onClick = { onOpenLightbox(index) },
                                     onDownloadClick = { onDownload(item) },
                                     onTagClick = onTagClick

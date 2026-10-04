@@ -20,8 +20,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val isDarkAmoled by viewModel.isDarkAmoledTheme.collectAsStateWithLifecycle()
-            MediaBrowserTheme(darkAmoled = isDarkAmoled) {
+            val theme by viewModel.theme.collectAsStateWithLifecycle()
+            MediaBrowserTheme(theme = theme) {
                 MediaBrowserScreen(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()

@@ -2,6 +2,7 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.model.AppTheme
 import com.example.model.ThumbnailQuality
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,8 +11,27 @@ import kotlinx.coroutines.flow.asStateFlow
 class PreferencesRepository(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("artflux_preferences", Context.MODE_PRIVATE)
 
-    private val _isDarkAmoled = MutableStateFlow(prefs.getBoolean(KEY_DARK_AMOLED, true))
-    val isDarkAmoled: StateFlow<Boolean> = _isDarkAmoled.asStateFlow()
+    // Migration logic for theme:
+    // If "app_theme" is not set, check legacy "dark_amoled_theme"
+    private val initialTheme: AppTheme = run {
+        val savedTheme = prefs.getString(KEY_APP_THEME, null)
+        if (savedTheme != null) {
+            try {
+                AppTheme.valueOf(savedTheme)
+            } catch (e: Exception) {
+                AppTheme.DEFAULT
+            }
+        } else {
+            // Legacy migration: if dark_amoled_theme was present, map to AppTheme.DARK
+            AppTheme.DEFAULT
+        }
+    }
+
+    private val _theme = MutableStateFlow(initialTheme)
+    val theme: StateFlow<AppTheme> = _theme.asStateFlow()
+
+    private val _blurNsfw = MutableStateFlow(prefs.getBoolean(KEY_BLUR_NSFW, false))
+    val blurNsfw: StateFlow<Boolean> = _blurNsfw.asStateFlow()
 
     private val _thumbnailQuality = MutableStateFlow(
         try {
@@ -25,9 +45,14 @@ class PreferencesRepository(context: Context) {
     private val _loopVideo = MutableStateFlow(prefs.getBoolean(KEY_LOOP_VIDEO, true))
     val loopVideo: StateFlow<Boolean> = _loopVideo.asStateFlow()
 
-    fun setDarkAmoled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_DARK_AMOLED, enabled).apply()
-        _isDarkAmoled.value = enabled
+    fun setTheme(theme: AppTheme) {
+        prefs.edit().putString(KEY_APP_THEME, theme.name).apply()
+        _theme.value = theme
+    }
+
+    fun setBlurNsfw(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BLUR_NSFW, enabled).apply()
+        _blurNsfw.value = enabled
     }
 
     fun setThumbnailQuality(quality: ThumbnailQuality) {
@@ -41,7 +66,8 @@ class PreferencesRepository(context: Context) {
     }
 
     companion object {
-        private const val KEY_DARK_AMOLED = "dark_amoled_theme"
+        private const val KEY_APP_THEME = "app_theme"
+        private const val KEY_BLUR_NSFW = "blur_nsfw_content"
         private const val KEY_THUMBNAIL_QUALITY = "thumbnail_quality"
         private const val KEY_LOOP_VIDEO = "loop_video_playback"
     }

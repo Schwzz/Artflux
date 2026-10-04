@@ -483,30 +483,35 @@ class ExampleRobolectricTest {
     assertEquals("IllustratorX", parsed.author)
   }
 
-  // --- 10. Preference Persistence Tests (Batch 4) ---
+  // --- 10. Preference Persistence Tests (Batch 4 & 5) ---
 
   @Test
   fun testPreferencesPersistence() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val prefsRepo = com.example.data.PreferencesRepository(context)
 
-    // Default is true
-    assertTrue(prefsRepo.isDarkAmoled.value)
+    // 1. Theme persistence (Default is DARK)
+    assertEquals(com.example.model.AppTheme.DARK, prefsRepo.theme.value)
 
-    // Toggle to false (off)
-    prefsRepo.setDarkAmoled(false)
-    assertFalse(prefsRepo.isDarkAmoled.value)
+    prefsRepo.setTheme(com.example.model.AppTheme.LIGHT)
+    assertEquals(com.example.model.AppTheme.LIGHT, prefsRepo.theme.value)
 
-    // Simulate app restart by creating a new repository instance from context
+    // Simulate restart
     val newPrefsRepo = com.example.data.PreferencesRepository(context)
-    assertFalse(newPrefsRepo.isDarkAmoled.value) // Persisted across instances!
+    assertEquals(com.example.model.AppTheme.LIGHT, newPrefsRepo.theme.value)
 
-    // Toggle back to true
-    newPrefsRepo.setDarkAmoled(true)
-    assertTrue(newPrefsRepo.isDarkAmoled.value)
+    newPrefsRepo.setTheme(com.example.model.AppTheme.DARK)
+    assertEquals(com.example.model.AppTheme.DARK, newPrefsRepo.theme.value)
 
-    val thirdInstance = com.example.data.PreferencesRepository(context)
-    assertTrue(thirdInstance.isDarkAmoled.value)
+    // 2. NSFW Blur persistence (Default is false)
+    assertFalse(prefsRepo.blurNsfw.value)
+    prefsRepo.setBlurNsfw(true)
+    assertTrue(prefsRepo.blurNsfw.value)
+
+    val restartedRepo = com.example.data.PreferencesRepository(context)
+    assertTrue(restartedRepo.blurNsfw.value)
+    restartedRepo.setBlurNsfw(false)
+    assertFalse(restartedRepo.blurNsfw.value)
   }
 
   // --- 11. Home Feed Settings / Source & Filter Update Tests (Batch 4) ---
@@ -562,6 +567,79 @@ class ExampleRobolectricTest {
     assertEquals(1, viewModel.searchState.value.currentPage)
     assertEquals("builtin_yandere", viewModel.searchState.value.activeSource.id)
     assertEquals("scenery", viewModel.searchState.value.searchQuery)
+  }
+
+  // --- 13. Download Quality Mapping & Format Preservation (Batch 5) ---
+
+  @Test
+  fun testDownloadQualityResolutionMapping() {
+    val imageItem = MediaItem(
+      id = "101",
+      title = "Scenery Art",
+      imageUrl = "https://cdn.artflux.org/files/original.png",
+      thumbnailUrl = "https://cdn.artflux.org/thumbs/preview.jpg",
+      sampleUrl = "https://cdn.artflux.org/samples/sample_720.jpg",
+      mediaType = MediaType.IMAGE
+    )
+
+    // Original uses original file
+    assertEquals("https://cdn.artflux.org/files/original.png", imageItem.getDownloadUrl(com.example.model.DownloadQuality.ORIGINAL))
+
+    // 1080p / 720p prefer sampleUrl if present
+    assertEquals("https://cdn.artflux.org/samples/sample_720.jpg", imageItem.getDownloadUrl(com.example.model.DownloadQuality.Q1080))
+    assertEquals("https://cdn.artflux.org/samples/sample_720.jpg", imageItem.getDownloadUrl(com.example.model.DownloadQuality.Q720))
+
+    // 480p / 360p prefer preview thumbnailUrl
+    assertEquals("https://cdn.artflux.org/thumbs/preview.jpg", imageItem.getDownloadUrl(com.example.model.DownloadQuality.Q480))
+    assertEquals("https://cdn.artflux.org/thumbs/preview.jpg", imageItem.getDownloadUrl(com.example.model.DownloadQuality.Q360))
+  }
+
+  @Test
+  fun testDownloadQualityPreservesGifAndVideoMedia() {
+    val gifItem = MediaItem(
+      id = "202",
+      title = "Animated Anime",
+      imageUrl = "https://cdn.artflux.org/files/animation.gif",
+      thumbnailUrl = "https://cdn.artflux.org/thumbs/static_frame.jpg",
+      mediaType = MediaType.GIF
+    )
+
+    // Even if 360p is requested, GIF must NOT download static jpg thumbnail
+    assertEquals("https://cdn.artflux.org/files/animation.gif", gifItem.getDownloadUrl(com.example.model.DownloadQuality.Q360))
+    assertEquals("https://cdn.artflux.org/files/animation.gif", gifItem.getDownloadUrl(com.example.model.DownloadQuality.ORIGINAL))
+
+    val videoItem = MediaItem(
+      id = "303",
+      title = "AMV Clip",
+      imageUrl = "https://cdn.artflux.org/files/video.mp4",
+      thumbnailUrl = "https://cdn.artflux.org/thumbs/video_thumb.jpg",
+      mediaType = MediaType.VIDEO
+    )
+
+    // Video must always download video file
+    assertEquals("https://cdn.artflux.org/files/video.mp4", videoItem.getDownloadUrl(com.example.model.DownloadQuality.Q480))
+    assertEquals("https://cdn.artflux.org/files/video.mp4", videoItem.getDownloadUrl(com.example.model.DownloadQuality.ORIGINAL))
+  }
+
+  // --- 14. Thumbnail Fallback Resolution Tests (Batch 5) ---
+
+  @Test
+  fun testThumbnailFallbackUrlResolution() {
+    val item = MediaItem(
+      id = "404",
+      title = "Artwork",
+      imageUrl = "https://cdn.booru.org/orig.jpg",
+      thumbnailUrl = "https://cdn.booru.org/thumb.jpg",
+      sampleUrl = "https://cdn.booru.org/sample.jpg"
+    )
+
+    // If preferred 720p is sampleUrl, fallback should provide thumbnailUrl
+    val fallbackFor720 = item.getThumbnailFallbackUrl(com.example.model.ThumbnailQuality.Q720)
+    assertEquals("https://cdn.booru.org/thumb.jpg", fallbackFor720)
+
+    // If preferred 360p is thumbnailUrl, fallback should provide sampleUrl or imageUrl
+    val fallbackFor360 = item.getThumbnailFallbackUrl(com.example.model.ThumbnailQuality.Q360)
+    assertEquals("https://cdn.booru.org/sample.jpg", fallbackFor360)
   }
 }
 

@@ -45,6 +45,27 @@ enum class ThumbnailQuality(val label: String, val resolution: Int) {
     }
 }
 
+enum class DownloadQuality(val label: String, val description: String) {
+    Q360("360p", "Preview resolution (~360p)"),
+    Q480("480p", "Standard resolution (~480p)"),
+    Q720("720p", "HD sample (~720p)"),
+    Q1080("1080p", "Full HD sample (~1080p)"),
+    ORIGINAL("Original", "Full original resolution");
+
+    companion object {
+        val DEFAULT = ORIGINAL
+    }
+}
+
+enum class AppTheme(val label: String) {
+    LIGHT("Light"),
+    DARK("Dark");
+
+    companion object {
+        val DEFAULT = DARK
+    }
+}
+
 data class FilterState(
     val sort: SortOption = SortOption.LATEST,
     val rating: MediaRating = MediaRating.ALL,
@@ -100,6 +121,33 @@ data class MediaItem(
             ThumbnailQuality.Q1080 -> {
                 sampleUrl?.ifBlank { null } ?: imageUrl.ifBlank { thumbnailUrl }
             }
+        }
+    }
+
+    fun getThumbnailFallbackUrl(primaryQuality: ThumbnailQuality): String {
+        val primary = getThumbnailForQuality(primaryQuality)
+        return when {
+            primary == thumbnailUrl && !sampleUrl.isNullOrBlank() -> sampleUrl
+            primary == thumbnailUrl && imageUrl.isNotBlank() -> imageUrl
+            primary == sampleUrl && thumbnailUrl.isNotBlank() -> thumbnailUrl
+            primary == imageUrl && !sampleUrl.isNullOrBlank() -> sampleUrl
+            primary == imageUrl && thumbnailUrl.isNotBlank() -> thumbnailUrl
+            else -> imageUrl
+        }
+    }
+
+    fun getDownloadUrl(quality: DownloadQuality): String {
+        // For animated GIFs and video files, always use full original media url to prevent format degradation
+        if (mediaType == MediaType.GIF || mediaType == MediaType.VIDEO) {
+            return imageUrl
+        }
+
+        return when (quality) {
+            DownloadQuality.ORIGINAL -> imageUrl
+            DownloadQuality.Q1080 -> sampleUrl?.ifBlank { null } ?: imageUrl
+            DownloadQuality.Q720 -> sampleUrl?.ifBlank { null } ?: imageUrl
+            DownloadQuality.Q480 -> thumbnailUrl.ifBlank { sampleUrl ?: imageUrl }
+            DownloadQuality.Q360 -> thumbnailUrl.ifBlank { sampleUrl ?: imageUrl }
         }
     }
 }

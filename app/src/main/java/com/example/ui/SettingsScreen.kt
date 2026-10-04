@@ -20,12 +20,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -48,6 +51,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AppTheme
 import com.example.model.MediaSourceConfig
 import com.example.model.ThumbnailQuality
 import com.example.ui.theme.CardBorder
@@ -62,8 +66,10 @@ import com.example.ui.theme.TextSecondary
 @Composable
 fun SettingsScreen(
     sources: List<MediaSourceConfig>,
-    isDarkAmoled: Boolean,
-    onDarkAmoledChange: (Boolean) -> Unit,
+    theme: AppTheme,
+    onThemeChange: (AppTheme) -> Unit,
+    blurNsfw: Boolean,
+    onBlurNsfwChange: (Boolean) -> Unit,
     thumbnailQuality: ThumbnailQuality,
     onThumbnailQualityChange: (ThumbnailQuality) -> Unit,
     loopVideo: Boolean,
@@ -88,8 +94,141 @@ fun SettingsScreen(
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
-        // Section: Thumbnail Quality Setting
-        SettingsSectionHeader(title = "Thumbnail Quality", icon = Icons.Default.HighQuality)
+        // 1. Section: Appearance (Theme & Blur NSFW)
+        SettingsSectionHeader(title = "Appearance", icon = Icons.Default.Palette)
+        SettingsCard {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Theme Selector: Light vs Dark
+                Column {
+                    Text(
+                        text = "Theme",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "Choose light or dark interface styling",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Light Theme Option
+                        val isLight = theme == AppTheme.LIGHT
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isLight) NeonIndigo else DarkSurfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isLight) NeonIndigoLight else CardBorder,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onThemeChange(AppTheme.LIGHT) }
+                                .padding(vertical = 12.dp)
+                                .testTag("theme_option_light"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.LightMode,
+                                    contentDescription = null,
+                                    tint = if (isLight) TextPrimary else TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Light",
+                                    color = if (isLight) TextPrimary else TextSecondary,
+                                    fontWeight = if (isLight) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+
+                        // Dark Theme Option
+                        val isDark = theme == AppTheme.DARK
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isDark) NeonIndigo else DarkSurfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isDark) NeonIndigoLight else CardBorder,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onThemeChange(AppTheme.DARK) }
+                                .padding(vertical = 12.dp)
+                                .testTag("theme_option_dark"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.DarkMode,
+                                    contentDescription = null,
+                                    tint = if (isDark) TextPrimary else TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Dark",
+                                    color = if (isDark) TextPrimary else TextSecondary,
+                                    fontWeight = if (isDark) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Blur NSFW Content Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Blur NSFW Content",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Blur adult content in feeds until opened",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = blurNsfw,
+                        onCheckedChange = onBlurNsfwChange,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = TextPrimary,
+                            checkedTrackColor = NeonIndigo
+                        ),
+                        modifier = Modifier.testTag("blur_nsfw_switch")
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 2. Section: Display (Thumbnail Quality)
+        SettingsSectionHeader(title = "Display", icon = Icons.Default.HighQuality)
         SettingsCard {
             Column(
                 modifier = Modifier
@@ -97,7 +236,7 @@ fun SettingsScreen(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Feed Image Resolution",
+                    text = "Thumbnail Quality",
                     color = TextPrimary,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp
@@ -147,21 +286,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section: Display & Theme (Persisted)
-        SettingsSectionHeader(title = "Display & Theme", icon = Icons.Default.Palette)
-        SettingsCard {
-            SettingsSwitchRow(
-                title = "Dark AMOLED Theme",
-                subtitle = "Pure deep black styling for OLED screens",
-                checked = isDarkAmoled,
-                onCheckedChange = onDarkAmoledChange,
-                testTag = "amoled_switch"
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Section: Media Playback
+        // 3. Section: Media Playback
         SettingsSectionHeader(title = "Media Playback", icon = Icons.Default.PlayCircle)
         SettingsCard {
             SettingsSwitchRow(
@@ -175,7 +300,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section: Source Configurations
+        // 4. Section: Source Configurations
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -261,7 +386,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section: About (Simplified - "Artflux by Swartzz")
+        // 5. Section: About (Artflux by Swartzz)
         SettingsSectionHeader(title = "About", icon = Icons.Default.Info)
         SettingsCard {
             Row(
