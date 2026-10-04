@@ -17,14 +17,26 @@ import com.example.model.MediaSourceConfig
 import com.example.model.MediaType
 import com.example.model.Orientation
 import com.example.model.SortOption
+import com.example.model.ThumbnailQuality
 import com.example.util.QueryBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+data class FeedState(
+    val activeSource: MediaSourceConfig = MediaSourceConfig.BUILT_IN_SAFEBOORU,
+    val searchQuery: String = "",
+    val filterState: FilterState = FilterState(),
+    val rawItems: List<MediaItem> = emptyList(),
+    val mediaItems: List<MediaItem> = emptyList(),
+    val isLoading: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val errorMessage: String? = null,
+    val currentPage: Int = 1,
+    val hasReachedEnd: Boolean = false
+)
 
 class MediaBrowserViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SourceRepository(application.applicationContext)
@@ -32,6 +44,41 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     val sources: StateFlow<List<MediaSourceConfig>> = repository.sources
 
+    // --- Isolated Home Feed State ---
+    private val _homeState = MutableStateFlow(
+        FeedState(activeSource = MediaSourceConfig.BUILT_IN_SAFEBOORU)
+    )
+    val homeState: StateFlow<FeedState> = _homeState.asStateFlow()
+
+    // --- Isolated Search State ---
+    private val _searchState = MutableStateFlow(
+        FeedState(activeSource = MediaSourceConfig.BUILT_IN_SAFEBOORU)
+    )
+    val searchState: StateFlow<FeedState> = _searchState.asStateFlow()
+
+    // --- Thumbnail Quality Setting ---
+    private val _thumbnailQuality = MutableStateFlow(ThumbnailQuality.DEFAULT)
+    val thumbnailQuality: StateFlow<ThumbnailQuality> = _thumbnailQuality.asStateFlow()
+
+    // --- Lightbox / Fullscreen Viewer State ---
+    private val _lightboxItems = MutableStateFlow<List<MediaItem>>(emptyList())
+    val lightboxItems: StateFlow<List<MediaItem>> = _lightboxItems.asStateFlow()
+
+    private val _lightboxIndex = MutableStateFlow<Int?>(null)
+    val lightboxIndex: StateFlow<Int?> = _lightboxIndex.asStateFlow()
+
+    // Dialogs & UI state
+    private val _isAddSourceOpen = MutableStateFlow(false)
+    val isAddSourceOpen: StateFlow<Boolean> = _isAddSourceOpen.asStateFlow()
+
+    private val _isSourcePickerOpen = MutableStateFlow(false)
+    val isSourcePickerOpen: StateFlow<Boolean> = _isSourcePickerOpen.asStateFlow()
+    private var sourcePickerTarget: String = "home" // "home" or "search"
+
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
+
+    // Backward compatibility delegates for existing tests
     private val _activeSource = MutableStateFlow<MediaSourceConfig>(MediaSourceConfig.BUILT_IN_SAFEBOORU)
     val activeSource: StateFlow<MediaSourceConfig> = _activeSource.asStateFlow()
 
@@ -41,60 +88,8 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val _filterState = MutableStateFlow(FilterState())
     val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
 
-    private val _rawItems = MutableStateFlow<List<MediaItem>>(emptyList())
-
-    // Client-side filtering & sorting applied to raw loaded items
-    val mediaItems: StateFlow<List<MediaItem>> = combine(_rawItems, _filterState) { items, filters ->
-        var result = items
-
-        val totalRaw = items.size
-        val rawGifs = items.count { it.mediaType == MediaType.GIF }
-        val rawVideos = items.count { it.mediaType == MediaType.VIDEO }
-        Log.d("ArtfluxDebug", "Filter applied: rawTotal=$totalRaw (GIFs=$rawGifs, Videos=$rawVideos), activeFilter=${filters.mediaType}")
-
-        // 1. Rating filter
-        if (filters.rating != MediaRating.ALL) {
-            result = result.filter { it.rating == filters.rating }
-        }
-
-        // 2. Media Type filter
-        if (filters.mediaType != MediaType.ALL) {
-            result = result.filter { item ->
-                when (filters.mediaType) {
-                    MediaType.IMAGE -> item.mediaType == MediaType.IMAGE
-                    MediaType.GIF -> item.mediaType == MediaType.GIF
-                    MediaType.VIDEO -> item.mediaType == MediaType.VIDEO
-                    else -> true
-                }
-            }
-        }
-
-        // 3. Orientation filter
-        if (filters.orientation != Orientation.ALL) {
-            result = result.filter { item ->
-                val w = item.width ?: 1
-                val h = item.height ?: 1
-                when (filters.orientation) {
-                    Orientation.PORTRAIT -> h > w
-                    Orientation.LANDSCAPE -> w > h
-                    Orientation.SQUARE -> (w.toFloat() / h.toFloat()) in 0.9f..1.1f
-                    else -> true
-                }
-            }
-        }
-
-        // 4. Sort order
-        result = when (filters.sort) {
-            SortOption.LATEST -> result
-            SortOption.POPULAR -> result.sortedByDescending { it.tags.size }
-            SortOption.TOP_RATED -> result.sortedBy { it.rating == MediaRating.SAFE }
-            SortOption.RANDOM -> result.shuffled()
-        }
-
-        Log.d("ArtfluxDebug", "Remaining after active filter (${filters.mediaType}): ${result.size} items")
-
-        result
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _mediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
+    val mediaItems: StateFlow<List<MediaItem>> = _mediaItems.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -105,161 +100,397 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    private val _lightboxIndex = MutableStateFlow<Int?>(null)
-    val lightboxIndex: StateFlow<Int?> = _lightboxIndex.asStateFlow()
-
-    private val _isAddSourceOpen = MutableStateFlow(false)
-    val isAddSourceOpen: StateFlow<Boolean> = _isAddSourceOpen.asStateFlow()
-
-    private val _isSourcePickerOpen = MutableStateFlow(false)
-    val isSourcePickerOpen: StateFlow<Boolean> = _isSourcePickerOpen.asStateFlow()
-
-    private val _snackbarMessage = MutableStateFlow<String?>(null)
-    val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
-
-    private var currentPage = 1
-    private var hasReachedEnd = false
-
     init {
-        // Load initial data with Curated Art Showcase
-        loadSourceData(source = _activeSource.value, query = "", isRefresh = true)
+        // Load initial Home discovery feed
+        loadHomeData(isRefresh = true)
+        // Load initial Search feed
+        loadSearchData(isRefresh = true)
     }
 
-    fun setSearchQuery(query: String) {
-        _searchQuery.value = query
+    private fun syncLegacyHomeState() {
+        val current = _homeState.value
+        _activeSource.value = current.activeSource
+        _searchQuery.value = current.searchQuery
+        _filterState.value = current.filterState
+        _mediaItems.value = current.mediaItems
+        _isLoading.value = current.isLoading
+        _isLoadingMore.value = current.isLoadingMore
+        _errorMessage.value = current.errorMessage
     }
 
-    fun executeSearch() {
-        loadSourceData(source = _activeSource.value, query = _searchQuery.value, isRefresh = true)
-    }
+    // ==========================================
+    // HOME FEED METHODS (Completely isolated)
+    // ==========================================
 
-    fun setActiveSource(source: MediaSourceConfig) {
-        if (_activeSource.value.id == source.id) return
-        _activeSource.value = source
-        // If current mediaType filter is not supported by the new source, reset to ALL
+    fun setHomeSource(source: MediaSourceConfig) {
+        val current = _homeState.value
+        if (current.activeSource.id == source.id) return
+
         val supportedTypes = source.getSupportedMediaTypes()
-        if (_filterState.value.mediaType !in supportedTypes) {
-            _filterState.value = _filterState.value.copy(mediaType = MediaType.ALL)
+        val sanitizedFilter = if (current.filterState.mediaType !in supportedTypes) {
+            current.filterState.copy(mediaType = MediaType.ALL)
+        } else {
+            current.filterState
         }
-        _rawItems.value = emptyList()
-        loadSourceData(source = source, query = _searchQuery.value, isRefresh = true)
+
+        _homeState.value = current.copy(
+            activeSource = source,
+            filterState = sanitizedFilter,
+            rawItems = emptyList(),
+            mediaItems = emptyList(),
+            currentPage = 1,
+            hasReachedEnd = false
+        )
+        syncLegacyHomeState()
+        loadHomeData(isRefresh = true)
     }
 
-    fun setFilterState(newFilters: FilterState) {
-        val supportedTypes = _activeSource.value.getSupportedMediaTypes()
+    fun setHomeFilterState(newFilters: FilterState) {
+        val current = _homeState.value
+        val supportedTypes = current.activeSource.getSupportedMediaTypes()
         val sanitizedFilters = if (newFilters.mediaType !in supportedTypes) {
             newFilters.copy(mediaType = MediaType.ALL)
         } else {
             newFilters
         }
 
-        val oldFilters = _filterState.value
         val oldEffectiveQuery = QueryBuilder.buildEffectiveQuery(
-            userQuery = _searchQuery.value,
-            source = _activeSource.value,
-            mediaType = oldFilters.mediaType,
-            rating = oldFilters.rating
+            userQuery = current.searchQuery,
+            source = current.activeSource,
+            mediaType = current.filterState.mediaType,
+            rating = current.filterState.rating
         )
         val newEffectiveQuery = QueryBuilder.buildEffectiveQuery(
-            userQuery = _searchQuery.value,
-            source = _activeSource.value,
+            userQuery = current.searchQuery,
+            source = current.activeSource,
             mediaType = sanitizedFilters.mediaType,
             rating = sanitizedFilters.rating
         )
 
-        _filterState.value = sanitizedFilters
+        val updatedItems = applyClientFilters(current.rawItems, sanitizedFilters)
+        _homeState.value = current.copy(
+            filterState = sanitizedFilters,
+            mediaItems = updatedItems
+        )
+        syncLegacyHomeState()
 
-        // If the source-specific effective query changed, trigger a fresh page 1 load
         if (oldEffectiveQuery != newEffectiveQuery) {
-            _rawItems.value = emptyList()
-            loadSourceData(source = _activeSource.value, query = _searchQuery.value, isRefresh = true)
+            _homeState.value = _homeState.value.copy(
+                rawItems = emptyList(),
+                mediaItems = emptyList()
+            )
+            syncLegacyHomeState()
+            loadHomeData(isRefresh = true)
         }
     }
 
-    fun loadSourceData(
-        source: MediaSourceConfig = _activeSource.value,
-        query: String = _searchQuery.value,
-        isRefresh: Boolean = false
-    ) {
-        if (isRefresh) {
-            currentPage = 1
-            hasReachedEnd = false
-            _isLoading.value = true
-            _errorMessage.value = null
-        } else {
-            if (_isLoading.value || _isLoadingMore.value || hasReachedEnd) return
-            _isLoadingMore.value = true
+    fun refreshHome() {
+        if (_homeState.value.isRefreshing || _homeState.value.isLoading) return
+        _homeState.value = _homeState.value.copy(isRefreshing = true)
+        loadHomeData(isRefresh = true)
+    }
+
+    fun loadNextHomePage() {
+        val current = _homeState.value
+        if (!current.hasReachedEnd && !current.isLoading && !current.isLoadingMore && !current.isRefreshing) {
+            loadHomeData(isRefresh = false)
         }
+    }
+
+    private fun loadHomeData(isRefresh: Boolean) {
+        val current = _homeState.value
+        if (isRefresh) {
+            _homeState.value = current.copy(
+                currentPage = 1,
+                hasReachedEnd = false,
+                isLoading = !current.isRefreshing,
+                errorMessage = null
+            )
+        } else {
+            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd) return
+            _homeState.value = current.copy(isLoadingMore = true)
+        }
+        syncLegacyHomeState()
 
         viewModelScope.launch {
-            val pageToFetch = if (isRefresh) 1 else currentPage
+            val stateNow = _homeState.value
+            val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
             val effectiveQuery = QueryBuilder.buildEffectiveQuery(
-                userQuery = query,
-                source = source,
-                mediaType = _filterState.value.mediaType,
-                rating = _filterState.value.rating
+                userQuery = stateNow.searchQuery,
+                source = stateNow.activeSource,
+                mediaType = stateNow.filterState.mediaType,
+                rating = stateNow.filterState.rating
             )
-            val result = apiClient.fetchMedia(source, effectiveQuery, pageToFetch)
-
-            _isLoading.value = false
-            _isLoadingMore.value = false
+            val result = apiClient.fetchMedia(stateNow.activeSource, effectiveQuery, pageToFetch)
 
             result.onSuccess { newItems ->
-                if (isRefresh) {
-                    _rawItems.value = newItems
-                    if (newItems.isEmpty()) {
-                        // Empty result
-                    }
+                val updatedRaw = if (isRefresh) {
+                    newItems
                 } else {
-                    if (newItems.isEmpty()) {
-                        hasReachedEnd = true
-                    } else {
-                        // Append unique items
-                        val existingIds = _rawItems.value.map { it.id }.toSet()
-                        val unique = newItems.filter { it.id !in existingIds }
-                        _rawItems.value = _rawItems.value + unique
-                    }
+                    val existingIds = stateNow.rawItems.map { it.id }.toSet()
+                    stateNow.rawItems + newItems.filter { it.id !in existingIds }
                 }
-                currentPage++
+                val filtered = applyClientFilters(updatedRaw, stateNow.filterState)
+                val reachedEnd = !isRefresh && newItems.isEmpty()
 
-                // Client-side fallback pagination: if a specific media type is requested
-                // and the current filtered result is empty, auto-fetch next page (up to page 4)
-                val targetType = _filterState.value.mediaType
-                if (targetType != MediaType.ALL && newItems.isNotEmpty() && currentPage <= 4) {
-                    val hasMatch = _rawItems.value.any { it.mediaType == targetType }
-                    if (!hasMatch && !hasReachedEnd) {
-                        loadSourceData(source = source, query = query, isRefresh = false)
+                _homeState.value = _homeState.value.copy(
+                    rawItems = updatedRaw,
+                    mediaItems = filtered,
+                    currentPage = pageToFetch + 1,
+                    hasReachedEnd = reachedEnd,
+                    isLoading = false,
+                    isLoadingMore = false,
+                    isRefreshing = false,
+                    errorMessage = null
+                )
+                syncLegacyHomeState()
+
+                // Client-side fallback pagination
+                val targetType = stateNow.filterState.mediaType
+                if (targetType != MediaType.ALL && newItems.isNotEmpty() && _homeState.value.currentPage <= 4) {
+                    val hasMatch = _homeState.value.mediaItems.any { it.mediaType == targetType }
+                    if (!hasMatch && !_homeState.value.hasReachedEnd) {
+                        loadHomeData(isRefresh = false)
                     }
                 }
             }.onFailure { error ->
-                if (isRefresh) {
-                    _errorMessage.value = error.message ?: "Failed to connect to source."
-                } else {
+                _homeState.value = _homeState.value.copy(
+                    isLoading = false,
+                    isLoadingMore = false,
+                    isRefreshing = false,
+                    errorMessage = if (isRefresh) (error.message ?: "Failed to connect to source.") else null
+                )
+                if (!isRefresh) {
                     _snackbarMessage.value = "Could not load more items: ${error.message}"
+                }
+                syncLegacyHomeState()
+            }
+        }
+    }
+
+    // ==========================================
+    // SEARCH METHODS (Completely isolated)
+    // ==========================================
+
+    fun setSearchSource(source: MediaSourceConfig) {
+        val current = _searchState.value
+        if (current.activeSource.id == source.id) return
+
+        val supportedTypes = source.getSupportedMediaTypes()
+        val sanitizedFilter = if (current.filterState.mediaType !in supportedTypes) {
+            current.filterState.copy(mediaType = MediaType.ALL)
+        } else {
+            current.filterState
+        }
+
+        _searchState.value = current.copy(
+            activeSource = source,
+            filterState = sanitizedFilter,
+            rawItems = emptyList(),
+            mediaItems = emptyList(),
+            currentPage = 1,
+            hasReachedEnd = false
+        )
+        loadSearchData(isRefresh = true)
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchState.value = _searchState.value.copy(searchQuery = query)
+    }
+
+    fun executeSearchQuery() {
+        _searchState.value = _searchState.value.copy(
+            rawItems = emptyList(),
+            mediaItems = emptyList(),
+            currentPage = 1,
+            hasReachedEnd = false
+        )
+        loadSearchData(isRefresh = true)
+    }
+
+    fun setSearchFilterState(newFilters: FilterState) {
+        val current = _searchState.value
+        val supportedTypes = current.activeSource.getSupportedMediaTypes()
+        val sanitizedFilters = if (newFilters.mediaType !in supportedTypes) {
+            newFilters.copy(mediaType = MediaType.ALL)
+        } else {
+            newFilters
+        }
+
+        val oldEffectiveQuery = QueryBuilder.buildEffectiveQuery(
+            userQuery = current.searchQuery,
+            source = current.activeSource,
+            mediaType = current.filterState.mediaType,
+            rating = current.filterState.rating
+        )
+        val newEffectiveQuery = QueryBuilder.buildEffectiveQuery(
+            userQuery = current.searchQuery,
+            source = current.activeSource,
+            mediaType = sanitizedFilters.mediaType,
+            rating = sanitizedFilters.rating
+        )
+
+        val updatedItems = applyClientFilters(current.rawItems, sanitizedFilters)
+        _searchState.value = current.copy(
+            filterState = sanitizedFilters,
+            mediaItems = updatedItems
+        )
+
+        if (oldEffectiveQuery != newEffectiveQuery) {
+            _searchState.value = _searchState.value.copy(
+                rawItems = emptyList(),
+                mediaItems = emptyList()
+            )
+            loadSearchData(isRefresh = true)
+        }
+    }
+
+    fun refreshSearch() {
+        if (_searchState.value.isRefreshing || _searchState.value.isLoading) return
+        _searchState.value = _searchState.value.copy(isRefreshing = true)
+        loadSearchData(isRefresh = true)
+    }
+
+    fun loadNextSearchPage() {
+        val current = _searchState.value
+        if (!current.hasReachedEnd && !current.isLoading && !current.isLoadingMore && !current.isRefreshing) {
+            loadSearchData(isRefresh = false)
+        }
+    }
+
+    private fun loadSearchData(isRefresh: Boolean) {
+        val current = _searchState.value
+        if (isRefresh) {
+            _searchState.value = current.copy(
+                currentPage = 1,
+                hasReachedEnd = false,
+                isLoading = !current.isRefreshing,
+                errorMessage = null
+            )
+        } else {
+            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd) return
+            _searchState.value = current.copy(isLoadingMore = true)
+        }
+
+        viewModelScope.launch {
+            val stateNow = _searchState.value
+            val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
+            val effectiveQuery = QueryBuilder.buildEffectiveQuery(
+                userQuery = stateNow.searchQuery,
+                source = stateNow.activeSource,
+                mediaType = stateNow.filterState.mediaType,
+                rating = stateNow.filterState.rating
+            )
+            val result = apiClient.fetchMedia(stateNow.activeSource, effectiveQuery, pageToFetch)
+
+            result.onSuccess { newItems ->
+                val updatedRaw = if (isRefresh) {
+                    newItems
+                } else {
+                    val existingIds = stateNow.rawItems.map { it.id }.toSet()
+                    stateNow.rawItems + newItems.filter { it.id !in existingIds }
+                }
+                val filtered = applyClientFilters(updatedRaw, stateNow.filterState)
+                val reachedEnd = !isRefresh && newItems.isEmpty()
+
+                _searchState.value = _searchState.value.copy(
+                    rawItems = updatedRaw,
+                    mediaItems = filtered,
+                    currentPage = pageToFetch + 1,
+                    hasReachedEnd = reachedEnd,
+                    isLoading = false,
+                    isLoadingMore = false,
+                    isRefreshing = false,
+                    errorMessage = null
+                )
+
+                // Client-side fallback pagination
+                val targetType = stateNow.filterState.mediaType
+                if (targetType != MediaType.ALL && newItems.isNotEmpty() && _searchState.value.currentPage <= 4) {
+                    val hasMatch = _searchState.value.mediaItems.any { it.mediaType == targetType }
+                    if (!hasMatch && !_searchState.value.hasReachedEnd) {
+                        loadSearchData(isRefresh = false)
+                    }
+                }
+            }.onFailure { error ->
+                _searchState.value = _searchState.value.copy(
+                    isLoading = false,
+                    isLoadingMore = false,
+                    isRefreshing = false,
+                    errorMessage = if (isRefresh) (error.message ?: "Failed to connect to source.") else null
+                )
+                if (!isRefresh) {
+                    _snackbarMessage.value = "Could not load more search items: ${error.message}"
                 }
             }
         }
     }
 
-    fun loadNextPage() {
-        if (!hasReachedEnd && !_isLoading.value && !_isLoadingMore.value) {
-            loadSourceData(isRefresh = false)
+    // ==========================================
+    // SETTINGS / THUMBNAIL QUALITY
+    // ==========================================
+
+    fun setThumbnailQuality(quality: ThumbnailQuality) {
+        _thumbnailQuality.value = quality
+    }
+
+    // ==========================================
+    // BACKWARD COMPATIBILITY ALIASES FOR TESTS
+    // ==========================================
+
+    fun setActiveSource(source: MediaSourceConfig) {
+        setHomeSource(source)
+    }
+
+    fun setFilterState(newFilters: FilterState) {
+        setHomeFilterState(newFilters)
+    }
+
+    fun executeSearch() {
+        executeSearchQuery()
+    }
+
+    fun loadSourceData(
+        source: MediaSourceConfig = _homeState.value.activeSource,
+        query: String = _homeState.value.searchQuery,
+        isRefresh: Boolean = false
+    ) {
+        if (source != _homeState.value.activeSource) {
+            setHomeSource(source)
+        } else {
+            loadHomeData(isRefresh)
         }
     }
 
+    fun loadNextPage() {
+        loadNextHomePage()
+    }
+
+    // ==========================================
+    // SOURCE MANAGEMENT
+    // ==========================================
+
     fun addCustomSource(source: MediaSourceConfig) {
         repository.addSource(source)
-        setActiveSource(source)
+        if (sourcePickerTarget == "search") {
+            setSearchSource(source)
+        } else {
+            setHomeSource(source)
+        }
         _isAddSourceOpen.value = false
         _snackbarMessage.value = "Source '${source.name}' added successfully!"
     }
 
     fun deleteSource(sourceId: String) {
         repository.deleteSource(sourceId)
-        if (_activeSource.value.id == sourceId) {
-            val fallback = repository.sources.value.firstOrNull { it.isBuiltIn }
-                ?: MediaSourceConfig.BUILT_IN_SAFEBOORU
-            setActiveSource(fallback)
+        val fallback = repository.sources.value.firstOrNull { it.isBuiltIn }
+            ?: MediaSourceConfig.BUILT_IN_SAFEBOORU
+
+        if (_homeState.value.activeSource.id == sourceId) {
+            setHomeSource(fallback)
+        }
+        if (_searchState.value.activeSource.id == sourceId) {
+            setSearchSource(fallback)
         }
         _snackbarMessage.value = "Source removed."
     }
@@ -272,7 +503,8 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _isAddSourceOpen.value = false
     }
 
-    fun openSourcePicker() {
+    fun openSourcePicker(target: String = "home") {
+        sourcePickerTarget = target
         _isSourcePickerOpen.value = true
     }
 
@@ -280,17 +512,31 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _isSourcePickerOpen.value = false
     }
 
-    fun openLightbox(index: Int) {
+    // ==========================================
+    // LIGHTBOX / VIEWER
+    // ==========================================
+
+    fun openLightbox(index: Int, items: List<MediaItem>) {
+        _lightboxItems.value = items
         _lightboxIndex.value = index
+    }
+
+    fun openLightbox(index: Int) {
+        openLightbox(index, _homeState.value.mediaItems)
     }
 
     fun closeLightbox() {
         _lightboxIndex.value = null
+        _lightboxItems.value = emptyList()
+    }
+
+    fun setLightboxIndex(index: Int) {
+        _lightboxIndex.value = index
     }
 
     fun nextLightboxItem() {
         val current = _lightboxIndex.value ?: return
-        val count = mediaItems.value.size
+        val count = _lightboxItems.value.size
         if (current < count - 1) {
             _lightboxIndex.value = current + 1
         }
@@ -303,6 +549,10 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    // ==========================================
+    // DOWNLOAD & UTILS
+    // ==========================================
+
     fun downloadImage(item: MediaItem) {
         try {
             val context = getApplication<Application>().applicationContext
@@ -313,7 +563,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_PICTURES,
-                    "MediaBrowser_${System.currentTimeMillis()}.jpg"
+                    "MediaBrowser_${System.currentTimeMillis()}.${item.fileExt ?: "jpg"}"
                 )
                 setAllowedOverMetered(true)
                 setAllowedOverRoaming(true)
@@ -328,5 +578,40 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     fun dismissSnackbar() {
         _snackbarMessage.value = null
+    }
+
+    private fun applyClientFilters(items: List<MediaItem>, filters: FilterState): List<MediaItem> {
+        var result = items
+        if (filters.rating != MediaRating.ALL) {
+            result = result.filter { it.rating == filters.rating }
+        }
+        if (filters.mediaType != MediaType.ALL) {
+            result = result.filter { item ->
+                when (filters.mediaType) {
+                    MediaType.IMAGE -> item.mediaType == MediaType.IMAGE
+                    MediaType.GIF -> item.mediaType == MediaType.GIF
+                    MediaType.VIDEO -> item.mediaType == MediaType.VIDEO
+                    else -> true
+                }
+            }
+        }
+        if (filters.orientation != Orientation.ALL) {
+            result = result.filter { item ->
+                val w = item.width ?: 1
+                val h = item.height ?: 1
+                when (filters.orientation) {
+                    Orientation.PORTRAIT -> h > w
+                    Orientation.LANDSCAPE -> w > h
+                    Orientation.SQUARE -> (w.toFloat() / h.toFloat()) in 0.9f..1.1f
+                    else -> true
+                }
+            }
+        }
+        return when (filters.sort) {
+            SortOption.LATEST -> result
+            SortOption.POPULAR -> result.sortedByDescending { it.tags.size }
+            SortOption.TOP_RATED -> result.sortedBy { it.rating == MediaRating.SAFE }
+            SortOption.RANDOM -> result.shuffled()
+        }
     }
 }

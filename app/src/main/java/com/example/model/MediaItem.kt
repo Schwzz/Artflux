@@ -34,6 +34,17 @@ enum class SortOption(val label: String) {
     RANDOM("Random")
 }
 
+enum class ThumbnailQuality(val label: String, val resolution: Int) {
+    Q360("360p", 360),
+    Q480("480p", 480),
+    Q720("720p", 720),
+    Q1080("1080p", 1080);
+
+    companion object {
+        val DEFAULT = Q720
+    }
+}
+
 data class FilterState(
     val sort: SortOption = SortOption.LATEST,
     val rating: MediaRating = MediaRating.ALL,
@@ -56,6 +67,7 @@ data class MediaItem(
     val title: String,
     val imageUrl: String,
     val thumbnailUrl: String,
+    val sampleUrl: String? = null,
     val postUrl: String? = null,
     val tags: List<String> = emptyList(),
     val rating: MediaRating = MediaRating.SAFE,
@@ -64,7 +76,9 @@ data class MediaItem(
     val height: Int? = null,
     val author: String? = null,
     val sourceName: String = "",
-    val description: String? = null
+    val description: String? = null,
+    val fileSize: Long? = null,
+    val fileExt: String? = null
 ) {
     val aspectRatio: Float
         get() {
@@ -74,4 +88,18 @@ data class MediaItem(
                 1.0f
             }
         }
+
+    fun getThumbnailForQuality(quality: ThumbnailQuality): String {
+        return when (quality) {
+            ThumbnailQuality.Q360, ThumbnailQuality.Q480 -> {
+                thumbnailUrl.ifBlank { sampleUrl ?: imageUrl }
+            }
+            ThumbnailQuality.Q720 -> {
+                sampleUrl?.ifBlank { null } ?: thumbnailUrl.ifBlank { imageUrl }
+            }
+            ThumbnailQuality.Q1080 -> {
+                sampleUrl?.ifBlank { null } ?: imageUrl.ifBlank { thumbnailUrl }
+            }
+        }
+    }
 }

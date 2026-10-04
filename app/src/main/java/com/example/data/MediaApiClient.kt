@@ -122,8 +122,8 @@ class MediaApiClient {
         val rawImage = extractValue(obj, source.imageUrlField)
         val rawThumb = extractValue(obj, source.thumbUrlField).ifBlank { rawImage }
 
-        // Determine image & thumbnail URLs
-        val (finalImage, finalThumb) = resolveUrls(source, obj, rawImage, rawThumb)
+        // Determine image, thumbnail, and sample URLs
+        val (finalImage, finalThumb, finalSample) = resolveUrls(source, obj, rawImage, rawThumb)
         if (finalImage.isBlank()) return null
 
         val id = extractValue(obj, "id").ifBlank { "item-${source.id}-$index" }
@@ -165,7 +165,9 @@ class MediaApiClient {
         }
 
         // Media type detection (GIF, VIDEO, IMAGE)
-        val fileExt = obj.optString("file_ext").lowercase().trim()
+        val fileExt = obj.optString("file_ext").lowercase().trim().ifBlank {
+            finalImage.substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotBlank() }
+        }
         val typeStr = extractValue(obj, source.mediaTypeField).lowercase()
         val imageExt = finalImage.substringAfterLast('.', "").substringBefore('?').lowercase()
         val rawImageExt = rawImage.substringAfterLast('.', "").substringBefore('?').lowercase()
@@ -198,12 +200,14 @@ class MediaApiClient {
         val author = extractValue(obj, source.authorField).ifBlank { null }
         val width = obj.optInt("width", 0).takeIf { it > 0 } ?: obj.optInt("image_width", 0).takeIf { it > 0 }
         val height = obj.optInt("height", 0).takeIf { it > 0 } ?: obj.optInt("image_height", 0).takeIf { it > 0 }
+        val fileSize = obj.optLong("file_size", 0L).takeIf { it > 0 }
 
         return MediaItem(
             id = id,
             title = title,
             imageUrl = finalImage,
             thumbnailUrl = finalThumb,
+            sampleUrl = finalSample,
             postUrl = postUrl,
             tags = tagsList,
             rating = rating,
@@ -212,7 +216,9 @@ class MediaApiClient {
             height = height,
             author = author,
             sourceName = source.name,
-            description = obj.optString("alt_text", obj.optString("description", "")).ifBlank { null }
+            description = obj.optString("alt_text", obj.optString("description", "")).ifBlank { null },
+            fileSize = fileSize,
+            fileExt = fileExt
         )
     }
 
@@ -221,7 +227,7 @@ class MediaApiClient {
         obj: JSONObject,
         rawImage: String,
         rawThumb: String
-    ): Pair<String, String> {
+    ): Triple<String, String, String?> {
         // Safebooru handling
         if (source.apiUrl.contains("safebooru.org")) {
             val directory = obj.optString("directory")
@@ -237,7 +243,10 @@ class MediaApiClient {
                     }
                     else -> "https://safebooru.org/thumbnails/$directory/thumbnail_$image"
                 }
-                return Pair(full, thumb)
+                val sample = if (obj.optBoolean("sample", false)) {
+                    "https://safebooru.org/samples/$directory/sample_$image"
+                } else null
+                return Triple(full, thumb, sample)
             }
         }
 
@@ -245,8 +254,9 @@ class MediaApiClient {
         if (source.apiUrl.contains("danbooru")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("large_file_url") } }
             val previewUrl = rawThumb.ifBlank { obj.optString("preview_file_url").ifBlank { fileUrl } }
+            val sampleUrl = obj.optString("large_file_url").takeIf { it.isNotBlank() }
             if (fileUrl.isNotBlank()) {
-                return Pair(fixUrl(fileUrl), fixUrl(previewUrl))
+                return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
             }
         }
 
@@ -254,15 +264,17 @@ class MediaApiClient {
         if (source.apiUrl.contains("yande.re")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("sample_url") } }
             val previewUrl = rawThumb.ifBlank { obj.optString("preview_url").ifBlank { obj.optString("sample_url") } }
+            val sampleUrl = obj.optString("sample_url").takeIf { it.isNotBlank() }
             if (fileUrl.isNotBlank()) {
-                return Pair(fixUrl(fileUrl), fixUrl(previewUrl))
+                return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
             }
         }
 
         // Generic URL cleanup
         val full = fixUrl(rawImage)
         val thumb = fixUrl(rawThumb.ifBlank { rawImage })
-        return Pair(full, thumb)
+        val sample = obj.optString("sample_url").ifBlank { obj.optString("large_file_url") }.takeIf { it.isNotBlank() }?.let { fixUrl(it) }
+        return Triple(full, thumb, sample)
     }
 
     private fun fixUrl(url: String): String {

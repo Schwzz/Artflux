@@ -5,7 +5,6 @@ import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
-import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,22 +16,31 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -77,6 +86,7 @@ import com.example.ui.theme.CardBorder
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EmeraldSafe
 import com.example.ui.theme.MagentaAccent
 import com.example.ui.theme.NeonIndigo
@@ -87,26 +97,35 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
 import com.example.util.ArtfluxImageLoader
 
-@kotlin.OptIn(ExperimentalLayoutApi::class)
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@androidx.compose.foundation.layout.ExperimentalLayoutApi
 @Composable
 fun LightboxViewer(
     item: MediaItem,
     currentIndex: Int,
     totalCount: Int,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
+    itemsList: List<MediaItem> = listOf(item),
+    onIndexChanged: (Int) -> Unit = {},
+    onPrevious: () -> Unit = {},
+    onNext: () -> Unit = {},
     onClose: () -> Unit,
     onDownload: () -> Unit,
     onTagClick: (String) -> Unit
 ) {
     val context = LocalContext.current
-    var showInfoSheet by remember { mutableStateOf(false) }
+    val effectiveItems = if (itemsList.isNotEmpty()) itemsList else listOf(item)
+    val safeInitialPage = currentIndex.coerceIn(0, (effectiveItems.size - 1).coerceAtLeast(0))
+    val pagerState = rememberPagerState(initialPage = safeInitialPage) { effectiveItems.size }
 
-    // Pinch-to-zoom & pan states for images/GIFs
-    var scale by remember(item.id) { mutableFloatStateOf(1f) }
-    var offsetX by remember(item.id) { mutableFloatStateOf(0f) }
-    var offsetY by remember(item.id) { mutableFloatStateOf(0f) }
+    var showInfoSheet by remember { mutableStateOf(false) }
+    var activeZoomScale by remember { mutableFloatStateOf(1f) }
+
+    LaunchedEffect(pagerState.currentPage) {
+        onIndexChanged(pagerState.currentPage)
+        activeZoomScale = 1f
+    }
+
+    val currentItem = effectiveItems.getOrNull(pagerState.currentPage) ?: item
 
     BackHandler {
         if (showInfoSheet) {
@@ -122,468 +141,587 @@ fun LightboxViewer(
             .background(DarkBackground.copy(alpha = 0.98f))
             .testTag("lightbox_viewer")
     ) {
-        // Main Media Display: Video (ExoPlayer) or Image/GIF (Coil)
-        if (item.mediaType == MediaType.VIDEO) {
-            key(item.id) {
-                val lifecycleOwner = LocalLifecycleOwner.current
+        // Horizontal Pager for fluid swipe navigation
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = activeZoomScale <= 1.05f,
+            modifier = Modifier.fillMaxSize()
+        ) { pageIndex ->
+            val pageItem = effectiveItems[pageIndex]
 
-                // Media3 / ExoPlayer Video Player
-                val exoPlayer = remember(item.id) {
-                    ExoPlayer.Builder(context).build().apply {
-                        val media3Item = Media3Item.fromUri(Uri.parse(item.imageUrl))
-                        setMediaItem(media3Item)
-                        repeatMode = Player.REPEAT_MODE_ONE
-                        playWhenReady = true
-                        prepare()
-                    }
-                }
+            if (pageItem.mediaType == MediaType.VIDEO) {
+                // Video Player with ExoPlayer
+                key(pageItem.id) {
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    val isCurrentPage = pagerState.currentPage == pageIndex
 
-                DisposableEffect(item.id) {
-                    onDispose {
-                        exoPlayer.pause()
-                        exoPlayer.stop()
-                        exoPlayer.clearMediaItems()
-                        exoPlayer.release()
-                    }
-                }
-
-                // Pause video playback when app is paused/stopped or screen turned off
-                DisposableEffect(lifecycleOwner, exoPlayer) {
-                    val observer = LifecycleEventObserver { _, event ->
-                        when (event) {
-                            Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                                exoPlayer.pause()
+                    val exoPlayer = remember(pageItem.id, isCurrentPage) {
+                        if (isCurrentPage) {
+                            ExoPlayer.Builder(context).build().apply {
+                                val media3Item = Media3Item.fromUri(Uri.parse(pageItem.imageUrl))
+                                setMediaItem(media3Item)
+                                repeatMode = Player.REPEAT_MODE_ONE
+                                playWhenReady = true
+                                prepare()
                             }
-                            else -> {}
+                        } else null
+                    }
+
+                    DisposableEffect(pageItem.id, isCurrentPage) {
+                        onDispose {
+                            exoPlayer?.pause()
+                            exoPlayer?.stop()
+                            exoPlayer?.clearMediaItems()
+                            exoPlayer?.release()
                         }
                     }
-                    lifecycleOwner.lifecycle.addObserver(observer)
-                    onDispose {
-                        lifecycleOwner.lifecycle.removeObserver(observer)
+
+                    DisposableEffect(lifecycleOwner, exoPlayer) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            when (event) {
+                                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                                    exoPlayer?.pause()
+                                }
+                                else -> {}
+                            }
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose {
+                            lifecycleOwner.lifecycle.removeObserver(observer)
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 60.dp, bottom = 80.dp, start = 8.dp, end = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (exoPlayer != null) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    PlayerView(ctx).apply {
+                                        player = exoPlayer
+                                        useController = true
+                                        setShowNextButton(false)
+                                        setShowPreviousButton(false)
+                                        layoutParams = FrameLayout.LayoutParams(
+                                            ViewGroup.LayoutParams.MATCH_PARENT,
+                                            ViewGroup.LayoutParams.MATCH_PARENT
+                                        )
+                                    }
+                                },
+                                update = { playerView ->
+                                    if (playerView.player != exoPlayer) {
+                                        playerView.player = exoPlayer
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            // Placeholder while not selected
+                            SubcomposeAsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(pageItem.thumbnailUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = pageItem.title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Image / GIF Viewer with Pinch-to-Zoom & Pan
+                var scale by remember(pageItem.id) { mutableFloatStateOf(1f) }
+                var offsetX by remember(pageItem.id) { mutableFloatStateOf(0f) }
+                var offsetY by remember(pageItem.id) { mutableFloatStateOf(0f) }
+
+                LaunchedEffect(scale) {
+                    if (pagerState.currentPage == pageIndex) {
+                        activeZoomScale = scale
                     }
                 }
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(vertical = 70.dp, horizontal = 8.dp),
+                        .pointerInput(pageItem.id) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                if (scale > 1f) {
+                                    val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                    val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                    offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
+                                    offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
+                                } else {
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                player = exoPlayer
-                                useController = true
-                                setShowNextButton(false)
-                                setShowPreviousButton(false)
-                                layoutParams = FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(pageItem.imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        imageLoader = ArtfluxImageLoader.get(context),
+                        contentDescription = pageItem.title,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 60.dp, bottom = 80.dp, start = 12.dp, end = 12.dp)
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offsetX,
+                                translationY = offsetY
+                            ),
+                        loading = {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = NeonIndigoLight,
+                                    strokeWidth = 3.dp
                                 )
                             }
-                        },
-                        update = { playerView ->
-                            if (playerView.player != exoPlayer) {
-                                playerView.player = exoPlayer
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
+                        }
                     )
                 }
             }
-        } else {
-            // Image / Animated GIF Display with Pinch-to-Zoom
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(item.id) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            if (scale > 1f) {
-                                val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                                val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                                offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
-                                offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
-                            } else {
-                                offsetX = 0f
-                                offsetY = 0f
-                            }
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(item.imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    imageLoader = ArtfluxImageLoader.get(context),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(vertical = 60.dp, horizontal = 12.dp)
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offsetX,
-                            translationY = offsetY
-                        ),
-                    loading = {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = NeonIndigoLight,
-                                strokeWidth = 3.dp
-                            )
-                        }
-                    }
-                )
-            }
         }
 
-        // Top Navigation & Action Bar
+        // Top Bar: Clean, with Close button and Media Type Indicator (NO "1/75" counter)
+        val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .background(DarkBackground.copy(alpha = 0.85f))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(top = statusBarPadding + 8.dp, start = 16.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(DarkSurface.copy(alpha = 0.9f))
+                    .border(1.dp, CardBorder, CircleShape)
+                    .testTag("lightbox_close_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close viewer",
+                    tint = TextPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Media Type Badge
+            when (currentItem.mediaType) {
+                MediaType.GIF -> {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MagentaAccent)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("GIF", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                MediaType.VIDEO -> {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(CyanAccent)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("VIDEO", color = DarkBackground, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                else -> {}
+            }
+        }
+
+        // Bottom Action Bar: Info, Share, Download (Comfortable spacing & system insets)
+        val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(bottom = navBarPadding + 16.dp, start = 24.dp, end = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .border(1.dp, CardBorder, RoundedCornerShape(24.dp)),
+                color = DarkSurface.copy(alpha = 0.92f),
+                tonalElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Info Button
+                    IconButton(
+                        onClick = { showInfoSheet = !showInfoSheet },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(if (showInfoSheet) NeonIndigo else Color.Transparent)
+                            .testTag("lightbox_info_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Media details",
+                            tint = if (showInfoSheet) TextPrimary else TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    // Share Button
+                    IconButton(
+                        onClick = {
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, currentItem.title)
+                                putExtra(Intent.EXTRA_TEXT, "${currentItem.title} - ${currentItem.imageUrl}")
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Share Media Link"))
+                        },
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .testTag("lightbox_share_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share media",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    // Download Button
+                    IconButton(
+                        onClick = onDownload,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(NeonIndigo)
+                            .testTag("lightbox_download_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Download media file",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Media Details Panel / Sheet with Visible Dismissal Button
+        if (showInfoSheet) {
+            MediaDetailsSheet(
+                item = currentItem,
+                onDismiss = { showInfoSheet = false },
+                onTagClick = { tag ->
+                    showInfoSheet = false
+                    onClose()
+                    onTagClick(tag)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+    }
+}
+
+@androidx.compose.foundation.layout.ExperimentalLayoutApi
+@Composable
+fun MediaDetailsSheet(
+    item: MediaItem,
+    onDismiss: () -> Unit,
+    onTagClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .border(1.dp, CardBorder, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+        color = DarkSurface,
+        tonalElevation = 10.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, start = 20.dp, end = 20.dp, bottom = navBarPadding + 16.dp)
+                .heightIn(max = 500.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Header with Title and Obvious Visible Close Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Media Details",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+
                 IconButton(
-                    onClick = onClose,
+                    onClick = onDismiss,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(DarkSurface)
-                        .testTag("lightbox_close_button")
+                        .background(DarkSurfaceVariant)
+                        .testTag("details_close_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Close lightbox",
-                        tint = TextPrimary
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = "${currentIndex + 1} / $totalCount",
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                // Media Type Badge in Top Bar
-                Spacer(modifier = Modifier.width(8.dp))
-                when (item.mediaType) {
-                    MediaType.GIF -> {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MagentaAccent)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text("GIF", color = TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    MediaType.VIDEO -> {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(CyanAccent)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text("VIDEO", color = DarkBackground, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    else -> {}
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Info Sheet Toggle
-                IconButton(
-                    onClick = { showInfoSheet = !showInfoSheet },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (showInfoSheet) NeonIndigo else DarkSurface)
-                        .testTag("lightbox_info_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Toggle info",
-                        tint = if (showInfoSheet) TextPrimary else TextSecondary
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Share Button
-                IconButton(
-                    onClick = {
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, item.title)
-                            putExtra(Intent.EXTRA_TEXT, "${item.title} - ${item.imageUrl}")
-                        }
-                        context.startActivity(Intent.createChooser(sendIntent, "Share Media Link"))
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(DarkSurface)
-                        .testTag("lightbox_share_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share media",
-                        tint = TextSecondary
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Download Button
-                IconButton(
-                    onClick = onDownload,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(NeonIndigo)
-                        .testTag("lightbox_download_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Download media file",
-                        tint = TextPrimary
+                        contentDescription = "Close details panel",
+                        tint = TextPrimary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-        }
 
-        // Floating Prev Button
-        if (currentIndex > 0) {
-            IconButton(
-                onClick = onPrevious,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(DarkSurface.copy(alpha = 0.85f))
-                    .border(1.dp, CardBorder, CircleShape)
-                    .testTag("lightbox_prev_button")
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Source, Rating & Type Badges Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Previous media",
-                    tint = TextPrimary
-                )
-            }
-        }
+                // Source Name
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(NeonIndigo.copy(alpha = 0.2f))
+                        .border(1.dp, NeonIndigo.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = item.sourceName,
+                        color = NeonIndigoLight,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
-        // Floating Next Button
-        if (currentIndex < totalCount - 1) {
-            IconButton(
-                onClick = onNext,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 12.dp)
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(DarkSurface.copy(alpha = 0.85f))
-                    .border(1.dp, CardBorder, CircleShape)
-                    .testTag("lightbox_next_button")
+                // Rating
+                val (ratingColor, ratingText) = when (item.rating) {
+                    MediaRating.SAFE -> Pair(EmeraldSafe, "SAFE")
+                    MediaRating.SUGGESTIVE -> Pair(Color(0xFFF59E0B), "SUGGESTIVE")
+                    MediaRating.ADULT -> Pair(RoseBadge, "ADULT")
+                    else -> Pair(TextTertiary, "UNKNOWN")
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ratingColor.copy(alpha = 0.15f))
+                        .border(1.dp, ratingColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = ratingText,
+                        color = ratingColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Media Type
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(DarkSurfaceVariant)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = item.mediaType.label,
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Title & Author & Post Link
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Next media",
-                    tint = TextPrimary
-                )
-            }
-        }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
+                    if (!item.author.isNullOrBlank()) {
+                        Text(
+                            text = "Artist / Author: ${item.author}",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
 
-        // Bottom Info Sheet Overlay
-        if (showInfoSheet) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                    .border(1.dp, CardBorder, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)),
-                color = DarkSurface
+                if (!item.postUrl.isNullOrBlank()) {
+                    IconButton(
+                        onClick = {
+                            try {
+                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(item.postUrl))
+                                context.startActivity(browserIntent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(DarkSurfaceVariant)
+                            .testTag("details_open_browser_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInBrowser,
+                            contentDescription = "Open post in browser",
+                            tint = NeonIndigoLight,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Organized Metadata Section
+            Text(
+                text = "METADATA",
+                color = TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp)
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (!item.author.isNullOrBlank()) {
-                                Text(
-                                    text = "By ${item.author}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = NeonIndigoLight,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
-                            }
-                        }
+                    MetadataRow(label = "Post ID", value = item.id)
 
-                        // Open post in browser
-                        if (!item.postUrl.isNullOrBlank()) {
-                            IconButton(
-                                onClick = {
-                                    try {
-                                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(item.postUrl))
-                                        context.startActivity(browserIntent)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(DarkSurface.copy(alpha = 0.8f))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.OpenInBrowser,
-                                    contentDescription = "Open post in browser",
-                                    tint = NeonIndigoLight,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
+                    if (item.width != null && item.height != null) {
+                        MetadataRow(label = "Resolution", value = "${item.width} × ${item.height}")
                     }
 
-                    // Metadata details row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Source Name Chip
+                    if (!item.fileExt.isNullOrBlank()) {
+                        MetadataRow(label = "File Format", value = item.fileExt.uppercase())
+                    }
+
+                    if (item.fileSize != null && item.fileSize > 0) {
+                        val formattedSize = if (item.fileSize > 1024 * 1024) {
+                            String.format("%.1f MB", item.fileSize / (1024.0 * 1024.0))
+                        } else {
+                            "${item.fileSize / 1024} KB"
+                        }
+                        MetadataRow(label = "File Size", value = formattedSize)
+                    }
+
+                    MetadataRow(label = "Source", value = item.sourceName)
+                }
+            }
+
+            // Description / Alt text
+            if (!item.description.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = item.description,
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+            }
+
+            // Scrollable Tags Section
+            if (item.tags.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "TAGS (${item.tags.size})",
+                    color = TextTertiary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    item.tags.forEach { tag ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF1E293B))
+                                .background(DarkSurfaceVariant)
+                                .border(1.dp, CardBorder, RoundedCornerShape(6.dp))
+                                .clickable { onTagClick(tag) }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .testTag("detail_tag_chip_$tag")
                         ) {
                             Text(
-                                text = item.sourceName,
-                                color = TextSecondary,
+                                text = "#$tag",
+                                color = NeonIndigoLight,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
-                        }
-
-                        // Rating Chip
-                        val (ratingColor, ratingText) = when (item.rating) {
-                            MediaRating.SAFE -> Pair(EmeraldSafe, "SAFE")
-                            MediaRating.SUGGESTIVE -> Pair(Color(0xFFF59E0B), "SUGGESTIVE")
-                            MediaRating.ADULT -> Pair(RoseBadge, "ADULT")
-                            else -> Pair(TextTertiary, "UNKNOWN")
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF1E293B))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = ratingText,
-                                color = ratingColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Resolution Chip
-                        if (item.width != null && item.height != null) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFF1E293B))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "${item.width} × ${item.height}",
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    }
-
-                    if (!item.description.isNullOrBlank()) {
-                        Text(
-                            text = item.description,
-                            color = TextSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(bottom = 10.dp)
-                        )
-                    }
-
-                    // Tags FlowRow
-                    if (item.tags.isNotEmpty()) {
-                        Text(
-                            text = "TAGS",
-                            color = TextTertiary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            item.tags.forEach { tag ->
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF1E293B))
-                                        .border(1.dp, CardBorder, RoundedCornerShape(6.dp))
-                                        .clickable {
-                                            onClose()
-                                            onTagClick(tag)
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "#$tag",
-                                        color = NeonIndigoLight,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun MetadataRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, color = TextSecondary, fontSize = 12.sp)
+        Text(text = value, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }

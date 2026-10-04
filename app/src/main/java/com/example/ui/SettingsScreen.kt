@@ -2,6 +2,7 @@ package com.example.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,17 +15,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,7 +32,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -45,12 +44,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.MediaSourceConfig
+import com.example.model.ThumbnailQuality
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
@@ -59,18 +60,18 @@ import com.example.ui.theme.NeonIndigo
 import com.example.ui.theme.NeonIndigoLight
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 
 @Composable
 fun SettingsScreen(
     sources: List<MediaSourceConfig>,
+    thumbnailQuality: ThumbnailQuality,
+    onThumbnailQualityChange: (ThumbnailQuality) -> Unit,
     onAddSourceClick: () -> Unit,
     onDeleteSource: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var darkThemeEnabled by remember { mutableStateOf(true) }
     var autoPlayPreviews by remember { mutableStateOf(true) }
-    var highResThumbnails by remember { mutableStateOf(true) }
 
     Column(
         modifier = modifier
@@ -88,6 +89,65 @@ fun SettingsScreen(
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
+        // Section: Thumbnail Quality Setting
+        SettingsSectionHeader(title = "Thumbnail Quality", icon = Icons.Default.HighQuality)
+        SettingsCard {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Feed Image Resolution",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "Preferred maximum resolution for gallery cards. Fullscreen view always uses original quality.",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                )
+
+                // Quality Selector Chips (360p, 480p, 720p, 1080p)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ThumbnailQuality.values().forEach { qualityOption ->
+                        val isSelected = qualityOption == thumbnailQuality
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) NeonIndigoLight else CardBorder,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onThumbnailQualityChange(qualityOption) }
+                                .padding(vertical = 10.dp)
+                                .testTag("quality_option_${qualityOption.resolution}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = qualityOption.label,
+                                    color = if (isSelected) TextPrimary else TextSecondary,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Section: Display & Theme
         SettingsSectionHeader(title = "Display & Theme", icon = Icons.Default.Palette)
         SettingsCard {
@@ -96,12 +156,6 @@ fun SettingsScreen(
                 subtitle = "Use immersive dark mode styling",
                 checked = darkThemeEnabled,
                 onCheckedChange = { darkThemeEnabled = it }
-            )
-            SettingsSwitchRow(
-                title = "High Resolution Thumbnails",
-                subtitle = "Load higher quality previews in gallery",
-                checked = highResThumbnails,
-                onCheckedChange = { highResThumbnails = it }
             )
         }
 
@@ -222,7 +276,7 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "A clean, Pinterest-style anime and art discovery feed connecting to Safebooru, Danbooru, Yande.re, and custom booru endpoints with advanced filtering and fullscreen playback.",
+                    text = "A clean, Pinterest-style anime and art discovery feed connecting to Safebooru, Danbooru, Yande.re, and custom booru endpoints with advanced filtering, swipeable fullscreen viewing, and thumbnail quality control.",
                     color = TextSecondary,
                     fontSize = 12.sp,
                     lineHeight = 18.sp
@@ -263,7 +317,7 @@ fun SettingsCard(content: @Composable () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(CardBorder))
+        border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(CardBorder))
     ) {
         content()
     }

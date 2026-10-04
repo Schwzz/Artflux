@@ -3,10 +3,10 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,7 +17,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,6 +33,7 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.model.MediaItem
 import com.example.model.MediaType
+import com.example.model.ThumbnailQuality
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
@@ -47,8 +47,9 @@ import com.example.util.ArtfluxImageLoader
 fun MediaCard(
     item: MediaItem,
     onClick: () -> Unit,
-    onDownloadClick: () -> Unit,
-    onTagClick: (String) -> Unit,
+    onDownloadClick: () -> Unit = {},
+    onTagClick: (String) -> Unit = {},
+    quality: ThumbnailQuality = ThumbnailQuality.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -56,10 +57,11 @@ fun MediaCard(
 
     // For GIFs, use the animated GIF URL so it animates in preview.
     // For videos, always use the preview/thumbnail image.
+    // For images, use the resolution matching the preferred ThumbnailQuality tier.
     val displayUrl = when (item.mediaType) {
         MediaType.GIF -> item.imageUrl
         MediaType.VIDEO -> item.thumbnailUrl
-        else -> item.thumbnailUrl
+        else -> item.getThumbnailForQuality(quality)
     }
 
     Card(

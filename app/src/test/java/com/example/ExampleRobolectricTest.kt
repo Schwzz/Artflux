@@ -368,5 +368,119 @@ class ExampleRobolectricTest {
     assertTrue(mediaTypes.contains("VIDEO"))
     assertFalse(mediaTypes.contains("ART"))
   }
+
+  // --- 7. Search & Home State Isolation Tests (Batch 3) ---
+
+  @Test
+  fun testSearchAndHomeStateIsolation() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = MediaBrowserViewModel(app)
+
+    // 1. Initial State: Home and Search are both on default source (Safebooru)
+    assertEquals("builtin_safebooru", viewModel.homeState.value.activeSource.id)
+    assertEquals("builtin_safebooru", viewModel.searchState.value.activeSource.id)
+
+    // 2. Set Home source to Danbooru and filter to Adult
+    val danbooru = MediaSourceConfig.BUILT_IN_DANBOORU
+    viewModel.setHomeSource(danbooru)
+    viewModel.setHomeFilterState(FilterState(rating = MediaRating.ADULT, mediaType = MediaType.GIF))
+
+    // Verify Home has Danbooru and Adult + GIF
+    assertEquals("builtin_danbooru", viewModel.homeState.value.activeSource.id)
+    assertEquals(MediaRating.ADULT, viewModel.homeState.value.filterState.rating)
+    assertEquals(MediaType.GIF, viewModel.homeState.value.filterState.mediaType)
+
+    // Verify Search is still Safebooru with default filters (100% Isolated)
+    assertEquals("builtin_safebooru", viewModel.searchState.value.activeSource.id)
+    assertEquals(MediaRating.ALL, viewModel.searchState.value.filterState.rating)
+    assertEquals(MediaType.ALL, viewModel.searchState.value.filterState.mediaType)
+
+    // 3. User configures Search: switch to Yande.re, query "genshin", rating Suggestive
+    val yandere = MediaSourceConfig.BUILT_IN_YANDERE
+    viewModel.setSearchSource(yandere)
+    viewModel.setSearchQuery("genshin")
+    viewModel.setSearchFilterState(FilterState(rating = MediaRating.SUGGESTIVE))
+
+    // Verify Search updated
+    assertEquals("builtin_yandere", viewModel.searchState.value.activeSource.id)
+    assertEquals("genshin", viewModel.searchState.value.searchQuery)
+    assertEquals(MediaRating.SUGGESTIVE, viewModel.searchState.value.filterState.rating)
+
+    // Verify Home remains completely intact and unmutated
+    assertEquals("builtin_danbooru", viewModel.homeState.value.activeSource.id)
+    assertEquals("", viewModel.homeState.value.searchQuery)
+    assertEquals(MediaRating.ADULT, viewModel.homeState.value.filterState.rating)
+    assertEquals(MediaType.GIF, viewModel.homeState.value.filterState.mediaType)
+  }
+
+  // --- 8. Thumbnail Quality Setting & Resolution Resolution Tests ---
+
+  @Test
+  fun testThumbnailQualityResolutionPolicy() {
+    val item = MediaItem(
+      id = "12345",
+      title = "Artwork",
+      imageUrl = "https://cdn.booru.org/original/12345.jpg",
+      thumbnailUrl = "https://cdn.booru.org/preview/12345.jpg",
+      sampleUrl = "https://cdn.booru.org/sample/12345.jpg",
+      fileExt = "jpg",
+      fileSize = 1048576L
+    )
+
+    // 360p / 480p should prefer thumbnailUrl
+    assertEquals("https://cdn.booru.org/preview/12345.jpg", item.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q360))
+    assertEquals("https://cdn.booru.org/preview/12345.jpg", item.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q480))
+
+    // 720p should prefer sampleUrl if available
+    assertEquals("https://cdn.booru.org/sample/12345.jpg", item.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+
+    // 1080p should prefer sampleUrl or imageUrl
+    assertEquals("https://cdn.booru.org/sample/12345.jpg", item.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
+
+    // Fallback when sampleUrl is null
+    val itemNoSample = item.copy(sampleUrl = null)
+    assertEquals("https://cdn.booru.org/preview/12345.jpg", itemNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+    assertEquals("https://cdn.booru.org/original/12345.jpg", itemNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
+  }
+
+  // --- 9. Media Details & Metadata Parsing Tests ---
+
+  @Test
+  fun testMediaItemMetadataParsingWithSampleAndFileSize() {
+    val apiClient = MediaApiClient()
+    val yandere = MediaSourceConfig.BUILT_IN_YANDERE
+
+    val jsonPayload = """
+      [
+        {
+          "id": 999,
+          "file_url": "https://files.yande.re/image/999/art.png",
+          "preview_url": "https://assets.yande.re/data/preview/999.jpg",
+          "sample_url": "https://files.yande.re/sample/999/art_sample.jpg",
+          "rating": "s",
+          "tags": "hatsune_miku vocaloid",
+          "width": 1920,
+          "height": 1080,
+          "file_size": 2097152,
+          "file_ext": "png",
+          "author": "IllustratorX"
+        }
+      ]
+    """.trimIndent()
+
+    val items = apiClient.parseMediaItems(yandere, jsonPayload)
+    assertEquals(1, items.size)
+    val parsed = items[0]
+
+    assertEquals("999", parsed.id)
+    assertEquals("https://files.yande.re/image/999/art.png", parsed.imageUrl)
+    assertEquals("https://assets.yande.re/data/preview/999.jpg", parsed.thumbnailUrl)
+    assertEquals("https://files.yande.re/sample/999/art_sample.jpg", parsed.sampleUrl)
+    assertEquals(1920, parsed.width)
+    assertEquals(1080, parsed.height)
+    assertEquals(2097152L, parsed.fileSize)
+    assertEquals("png", parsed.fileExt)
+    assertEquals("IllustratorX", parsed.author)
+  }
 }
 
