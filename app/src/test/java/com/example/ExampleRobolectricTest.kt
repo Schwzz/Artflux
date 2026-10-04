@@ -1025,5 +1025,273 @@ class ExampleRobolectricTest {
     assertFalse(editing!!.isBuiltIn)
     assertTrue(editing.name.contains("Safebooru (Custom)"))
   }
+
+  // --- 27. Generic API Pagination Tests (Batch 8A) ---
+
+  @Test
+  fun testGenericApiPaginationZeroBasedOneBasedAndArbitrary() {
+    fun calculatePage(pageStartsAt: Int, pageNumber: Int): Int {
+      return (pageNumber - 1) + pageStartsAt
+    }
+
+    // Zero-based pagination (e.g. pageStartsAt = 0)
+    assertEquals(0, calculatePage(0, 1))
+    assertEquals(1, calculatePage(0, 2))
+    assertEquals(4, calculatePage(0, 5))
+
+    // One-based pagination (e.g. pageStartsAt = 1)
+    assertEquals(1, calculatePage(1, 1))
+    assertEquals(2, calculatePage(1, 2))
+    assertEquals(5, calculatePage(1, 5))
+
+    // Arbitrary starting-page source (e.g. pageStartsAt = 10)
+    assertEquals(10, calculatePage(10, 1))
+    assertEquals(11, calculatePage(10, 2))
+    assertEquals(14, calculatePage(10, 5))
+  }
+
+  // --- 28. Configuration-Driven URL Mapping Tests (Batch 8A) ---
+
+  @Test
+  fun testConfigurationDrivenUrlMappingRespectsCustomFields() {
+    val apiClient = MediaApiClient()
+    val customSource = MediaSourceConfig(
+      id = "custom_test_booru",
+      name = "Custom Booru",
+      apiUrl = "https://custom.api.org/v1/posts",
+      imageUrlField = "file_full",
+      thumbUrlField = "thumb_small",
+      sampleUrlField = "sample_mid",
+      postUrlField = "post_permalink",
+      titleField = "caption",
+      authorField = "artist"
+    )
+
+    val jsonPayload = """
+      [
+        {
+          "id": "item-888",
+          "caption": "Custom Artpiece",
+          "file_full": "https://custom.api.org/images/full_888.png",
+          "thumb_small": "https://custom.api.org/thumbs/thumb_888.jpg",
+          "sample_mid": "https://custom.api.org/samples/sample_888.jpg",
+          "post_permalink": "https://custom.api.org/post/item-888",
+          "tags": "scenery original landscape",
+          "rating": "safe",
+          "artist": "PainterOne",
+          "score": 42,
+          "fav_count": 18
+        }
+      ]
+    """.trimIndent()
+
+    val items = apiClient.parseMediaItems(customSource, jsonPayload)
+
+    assertEquals(1, items.size)
+    val item = items[0]
+    assertEquals("https://custom.api.org/images/full_888.png", item.imageUrl)
+    assertEquals("https://custom.api.org/thumbs/thumb_888.jpg", item.thumbnailUrl)
+    assertEquals("https://custom.api.org/samples/sample_888.jpg", item.sampleUrl)
+    assertEquals("https://custom.api.org/post/item-888", item.postUrl)
+    assertEquals("Custom Artpiece", item.title)
+    assertEquals(42, item.score)
+    assertEquals(18, item.favorites)
+  }
+
+  // --- 29. URL Fallback: Avoid Video As Image Thumbnail & Avoid Heavy Original (Batch 8A) ---
+
+  @Test
+  fun testUrlFallbackNeverUsesVideoFileAsImageThumbnail() {
+    val apiClient = MediaApiClient()
+    val videoSource = MediaSourceConfig(
+      id = "video_booru",
+      name = "Video Booru",
+      apiUrl = "https://custom.video.org/api",
+      imageUrlField = "video_url",
+      thumbUrlField = "thumb_url",
+      sampleUrlField = "sample_preview"
+    )
+
+    // Case 1: Video with image sample available -> uses sample as thumbnail, never mp4
+    val jsonWithSample = """
+      [
+        {
+          "id": "vid-1",
+          "video_url": "https://custom.video.org/clips/clip.mp4",
+          "thumb_url": "",
+          "sample_preview": "https://custom.video.org/previews/preview.jpg",
+          "file_ext": "mp4"
+        }
+      ]
+    """.trimIndent()
+
+    val items1 = apiClient.parseMediaItems(videoSource, jsonWithSample)
+    assertEquals(1, items1.size)
+    assertEquals("https://custom.video.org/clips/clip.mp4", items1[0].imageUrl)
+    assertEquals("https://custom.video.org/previews/preview.jpg", items1[0].thumbnailUrl)
+    assertFalse(items1[0].thumbnailUrl.endsWith(".mp4"))
+
+    // Case 2: Video with NO thumbnail and NO sample -> thumbnail must be empty, NEVER mp4
+    val jsonNoThumb = """
+      [
+        {
+          "id": "vid-2",
+          "video_url": "https://custom.video.org/clips/raw_clip.webm",
+          "thumb_url": "",
+          "sample_preview": "",
+          "file_ext": "webm"
+        }
+      ]
+    """.trimIndent()
+
+    val items2 = apiClient.parseMediaItems(videoSource, jsonNoThumb)
+    assertEquals(1, items2.size)
+    assertFalse(items2[0].thumbnailUrl.endsWith(".webm"))
+    assertEquals("", items2[0].thumbnailUrl)
+  }
+
+  // --- 30. Sorting Accuracy Tests (Batch 8A) ---
+
+  @Test
+  fun testSortingAccuracyUsesRealMetricsAndPreservesNaturalOrder() {
+    val item1 = MediaItem(
+      id = "1",
+      title = "Item 1",
+      imageUrl = "https://cdn.org/1.jpg",
+      thumbnailUrl = "https://cdn.org/1_t.jpg",
+      tags = List(15) { "tag$it" }, // 15 tags
+      rating = MediaRating.ADULT,
+      score = 500,
+      favorites = 10
+    )
+
+    val item2 = MediaItem(
+      id = "2",
+      title = "Item 2",
+      imageUrl = "https://cdn.org/2.jpg",
+      thumbnailUrl = "https://cdn.org/2_t.jpg",
+      tags = listOf("one_tag"), // 1 tag
+      rating = MediaRating.SAFE,
+      score = 50,
+      favorites = 200 // high favorites
+    )
+
+    val item3 = MediaItem(
+      id = "3",
+      title = "Item 3",
+      imageUrl = "https://cdn.org/3.jpg",
+      thumbnailUrl = "https://cdn.org/3_t.jpg",
+      tags = List(30) { "tag$it" }, // 30 tags
+      rating = MediaRating.SAFE,
+      score = 150,
+      favorites = 5
+    )
+
+    val list = listOf(item1, item2, item3)
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = MediaBrowserViewModel(context)
+
+    val filterMethod = MediaBrowserViewModel::class.java.getDeclaredMethod(
+      "applyClientFilters",
+      List::class.java,
+      FilterState::class.java
+    ).apply { isAccessible = true }
+
+    // 1. Popular Sort: MUST use favorites / views / score, NOT tag count!
+    @Suppress("UNCHECKED_CAST")
+    val popularSorted = filterMethod.invoke(viewModel, list, FilterState(sort = com.example.model.SortOption.POPULAR)) as List<MediaItem>
+    assertEquals("Item 2", popularSorted[0].title) // 200 favs
+    assertEquals("Item 1", popularSorted[1].title) // 10 favs
+    assertEquals("Item 3", popularSorted[2].title) // 5 favs (despite having 30 tags!)
+
+    // 2. Top Rated Sort: MUST use actual score, NOT Safe/Adult rating!
+    @Suppress("UNCHECKED_CAST")
+    val topRatedSorted = filterMethod.invoke(viewModel, list, FilterState(sort = com.example.model.SortOption.TOP_RATED)) as List<MediaItem>
+    assertEquals("Item 1", topRatedSorted[0].title) // score 500 (even though ADULT!)
+    assertEquals("Item 3", topRatedSorted[1].title) // score 150
+    assertEquals("Item 2", topRatedSorted[2].title) // score 50
+
+    // 3. Natural order preserved when metrics are absent (do NOT pretend sorting is meaningful)
+    val noMetricsList = listOf(
+      MediaItem(id = "a", title = "A", imageUrl = "https://cdn.org/a.jpg", thumbnailUrl = "https://cdn.org/at.jpg", tags = listOf("t1", "t2", "t3"), rating = MediaRating.ADULT),
+      MediaItem(id = "b", title = "B", imageUrl = "https://cdn.org/b.jpg", thumbnailUrl = "https://cdn.org/bt.jpg", tags = listOf("t1"), rating = MediaRating.SAFE)
+    )
+    @Suppress("UNCHECKED_CAST")
+    val popularNoMetrics = filterMethod.invoke(viewModel, noMetricsList, FilterState(sort = com.example.model.SortOption.POPULAR)) as List<MediaItem>
+    assertEquals("A", popularNoMetrics[0].title)
+    assertEquals("B", popularNoMetrics[1].title)
+
+    @Suppress("UNCHECKED_CAST")
+    val topRatedNoMetrics = filterMethod.invoke(viewModel, noMetricsList, FilterState(sort = com.example.model.SortOption.TOP_RATED)) as List<MediaItem>
+    assertEquals("A", topRatedNoMetrics[0].title)
+    assertEquals("B", topRatedNoMetrics[1].title)
+  }
+
+  // --- 31. Custom Source Credential Security & Migration Tests (Batch 8A) ---
+
+  @Test
+  fun testCustomSourceCredentialSecurityAndMigration() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val repo = com.example.data.SourceRepository(context)
+
+    val secretSource = MediaSourceConfig(
+      id = "secure_source_99",
+      name = "Secure Source",
+      apiUrl = "https://secure.api.org/feed",
+      apiKey = "super_secret_token_12345",
+      authHeaderValue = "bearer_secret_xyz",
+      authQueryParams = listOf(com.example.model.AuthParam("user_id", "my_user_id")),
+      isBuiltIn = false
+    )
+
+    // Save custom source
+    repo.addSource(secretSource)
+
+    // 1. Verify plain SharedPreferences DOES NOT contain sensitive plaintext credentials
+    val plainPrefs = context.getSharedPreferences("media_browser_sources", Context.MODE_PRIVATE)
+    val savedJson = plainPrefs.getString("custom_sources", "") ?: ""
+    assertFalse(savedJson.contains("super_secret_token_12345"))
+    assertFalse(savedJson.contains("bearer_secret_xyz"))
+    assertFalse(savedJson.contains("my_user_id"))
+
+    // 2. Verify in-memory repository successfully populated credentials from secure storage
+    val loaded = repo.getSourceById("secure_source_99")
+    assertNotNull(loaded)
+    assertEquals("super_secret_token_12345", loaded!!.apiKey)
+    assertEquals("bearer_secret_xyz", loaded.authHeaderValue)
+    assertEquals(1, loaded.authQueryParams.size)
+    assertEquals("user_id", loaded.authQueryParams[0].key)
+    assertEquals("my_user_id", loaded.authQueryParams[0].value)
+
+    // 3. Test legacy migration from plaintext in SharedPreferences
+    val legacyJson = """
+      [
+        {
+          "id": "legacy_migrated_source",
+          "name": "Legacy Source",
+          "apiUrl": "https://legacy.org/api",
+          "apiKey": "legacy_plaintext_key_777",
+          "authHeaderValue": "legacy_header_val_888",
+          "authQueryParams": [{"key": "token", "value": "legacy_token_999"}],
+          "isBuiltIn": false
+        }
+      ]
+    """.trimIndent()
+    plainPrefs.edit().putString("custom_sources", legacyJson).commit()
+
+    // Reload sources (triggers migration)
+    repo.loadSources()
+
+    val migrated = repo.getSourceById("legacy_migrated_source")
+    assertNotNull(migrated)
+    assertEquals("legacy_plaintext_key_777", migrated!!.apiKey)
+    assertEquals("legacy_header_val_888", migrated.authHeaderValue)
+
+    // Verify plaintext secrets were purged from ordinary SharedPreferences
+    val resavedJson = plainPrefs.getString("custom_sources", "") ?: ""
+    assertFalse(resavedJson.contains("legacy_plaintext_key_777"))
+    assertFalse(resavedJson.contains("legacy_header_val_888"))
+    assertFalse(resavedJson.contains("legacy_token_999"))
+  }
 }
 

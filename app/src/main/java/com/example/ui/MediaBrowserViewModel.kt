@@ -5,7 +5,6 @@ import android.app.DownloadManager
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.MediaApiClient
@@ -278,10 +277,19 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun loadHomeData(isRefresh: Boolean) {
-        val current = _homeState.value
+        loadFeedData(isHome = true, isRefresh = isRefresh)
+    }
+
+    private fun loadSearchData(isRefresh: Boolean) {
+        loadFeedData(isHome = false, isRefresh = isRefresh)
+    }
+
+    private fun loadFeedData(isHome: Boolean, isRefresh: Boolean) {
+        val stateFlow = if (isHome) _homeState else _searchState
+        val current = stateFlow.value
         if (isRefresh) {
             if (!current.isRefreshing) {
-                _homeState.value = current.copy(
+                stateFlow.value = current.copy(
                     currentPage = 1,
                     hasReachedEnd = false,
                     isLoading = true,
@@ -290,13 +298,15 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
             }
         } else {
             if (current.isLoading || current.isLoadingMore || current.hasReachedEnd || current.isRefreshing) return
-            _homeState.value = current.copy(isLoadingMore = true)
+            stateFlow.value = current.copy(isLoadingMore = true)
         }
-        syncLegacyHomeState()
+        if (isHome) syncLegacyHomeState()
 
-        homeJob?.cancel()
-        homeJob = viewModelScope.launch {
-            val stateNow = _homeState.value
+        val activeJob = if (isHome) homeJob else searchJob
+        activeJob?.cancel()
+
+        val newJob = viewModelScope.launch {
+            val stateNow = stateFlow.value
             val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
             val effectiveQuery = QueryBuilder.buildEffectiveQuery(
                 userQuery = stateNow.searchQuery,
@@ -316,7 +326,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                 val filtered = applyClientFilters(updatedRaw, stateNow.filterState)
                 val reachedEnd = !isRefresh && newItems.isEmpty()
 
-                _homeState.value = _homeState.value.copy(
+                stateFlow.value = stateFlow.value.copy(
                     rawItems = updatedRaw,
                     mediaItems = filtered,
                     currentPage = pageToFetch + 1,
@@ -326,29 +336,35 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                     isRefreshing = false,
                     errorMessage = null
                 )
-                syncLegacyHomeState()
+                if (isHome) syncLegacyHomeState()
 
                 // Client-side fallback pagination
                 val targetType = stateNow.filterState.mediaType
-                if (targetType != MediaType.ALL && newItems.isNotEmpty() && _homeState.value.currentPage <= 4) {
-                    val hasMatch = _homeState.value.mediaItems.any { it.mediaType == targetType }
-                    if (!hasMatch && !_homeState.value.hasReachedEnd) {
-                        loadHomeData(isRefresh = false)
+                if (targetType != MediaType.ALL && newItems.isNotEmpty() && stateFlow.value.currentPage <= 4) {
+                    val hasMatch = stateFlow.value.mediaItems.any { it.mediaType == targetType }
+                    if (!hasMatch && !stateFlow.value.hasReachedEnd) {
+                        loadFeedData(isHome, isRefresh = false)
                     }
                 }
             }.onFailure { error ->
-                _homeState.value = _homeState.value.copy(
+                stateFlow.value = stateFlow.value.copy(
                     isLoading = false,
                     isLoadingMore = false,
                     isRefreshing = false,
                     errorMessage = if (isRefresh) (error.message ?: "Failed to connect to source.") else null
                 )
                 if (!isRefresh) {
-                    _snackbarMessage.value = "Could not load more items: ${error.message}"
+                    _snackbarMessage.value = if (isHome) {
+                        "Could not load more items: ${error.message}"
+                    } else {
+                        "Could not load more search items: ${error.message}"
+                    }
                 }
-                syncLegacyHomeState()
+                if (isHome) syncLegacyHomeState()
             }
         }
+
+        if (isHome) homeJob = newJob else searchJob = newJob
     }
 
     // ==========================================
@@ -446,77 +462,6 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         val current = _searchState.value
         if (!current.hasReachedEnd && !current.isLoading && !current.isLoadingMore && !current.isRefreshing) {
             loadSearchData(isRefresh = false)
-        }
-    }
-
-    private fun loadSearchData(isRefresh: Boolean) {
-        val current = _searchState.value
-        if (isRefresh) {
-            if (!current.isRefreshing) {
-                _searchState.value = current.copy(
-                    currentPage = 1,
-                    hasReachedEnd = false,
-                    isLoading = true,
-                    errorMessage = null
-                )
-            }
-        } else {
-            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd || current.isRefreshing) return
-            _searchState.value = current.copy(isLoadingMore = true)
-        }
-
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            val stateNow = _searchState.value
-            val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
-            val effectiveQuery = QueryBuilder.buildEffectiveQuery(
-                userQuery = stateNow.searchQuery,
-                source = stateNow.activeSource,
-                mediaType = stateNow.filterState.mediaType,
-                rating = stateNow.filterState.rating
-            )
-            val result = apiClient.fetchMedia(stateNow.activeSource, effectiveQuery, pageToFetch)
-
-            result.onSuccess { newItems ->
-                val updatedRaw = if (isRefresh) {
-                    newItems
-                } else {
-                    val existingIds = stateNow.rawItems.map { it.id }.toSet()
-                    stateNow.rawItems + newItems.filter { it.id !in existingIds }
-                }
-                val filtered = applyClientFilters(updatedRaw, stateNow.filterState)
-                val reachedEnd = !isRefresh && newItems.isEmpty()
-
-                _searchState.value = _searchState.value.copy(
-                    rawItems = updatedRaw,
-                    mediaItems = filtered,
-                    currentPage = pageToFetch + 1,
-                    hasReachedEnd = reachedEnd,
-                    isLoading = false,
-                    isLoadingMore = false,
-                    isRefreshing = false,
-                    errorMessage = null
-                )
-
-                // Client-side fallback pagination
-                val targetType = stateNow.filterState.mediaType
-                if (targetType != MediaType.ALL && newItems.isNotEmpty() && _searchState.value.currentPage <= 4) {
-                    val hasMatch = _searchState.value.mediaItems.any { it.mediaType == targetType }
-                    if (!hasMatch && !_searchState.value.hasReachedEnd) {
-                        loadSearchData(isRefresh = false)
-                    }
-                }
-            }.onFailure { error ->
-                _searchState.value = _searchState.value.copy(
-                    isLoading = false,
-                    isLoadingMore = false,
-                    isRefreshing = false,
-                    errorMessage = if (isRefresh) (error.message ?: "Failed to connect to source.") else null
-                )
-                if (!isRefresh) {
-                    _snackbarMessage.value = "Could not load more search items: ${error.message}"
-                }
-            }
         }
     }
 
@@ -779,8 +724,22 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         }
         return when (filters.sort) {
             SortOption.LATEST -> result
-            SortOption.POPULAR -> result.sortedByDescending { it.tags.size }
-            SortOption.TOP_RATED -> result.sortedBy { it.rating == MediaRating.SAFE }
+            SortOption.POPULAR -> {
+                val hasMetrics = result.any { (it.favorites ?: it.views ?: it.score) != null }
+                if (hasMetrics) {
+                    result.sortedByDescending { it.favorites ?: it.views ?: it.score ?: 0 }
+                } else {
+                    result
+                }
+            }
+            SortOption.TOP_RATED -> {
+                val hasScore = result.any { it.score != null }
+                if (hasScore) {
+                    result.sortedByDescending { it.score ?: 0 }
+                } else {
+                    result
+                }
+            }
             SortOption.RANDOM -> result.shuffled()
         }
     }

@@ -99,7 +99,10 @@ data class MediaItem(
     val sourceName: String = "",
     val description: String? = null,
     val fileSize: Long? = null,
-    val fileExt: String? = null
+    val fileExt: String? = null,
+    val score: Int? = null,
+    val favorites: Int? = null,
+    val views: Int? = null
 ) {
     val aspectRatio: Float
         get() {

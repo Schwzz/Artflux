@@ -1,6 +1,5 @@
 package com.example.data
 
-import android.util.Log
 import com.example.model.DiagnosticStatus
 import com.example.model.DiagnosticStep
 import com.example.model.MediaItem
@@ -39,7 +38,7 @@ class MediaApiClient {
 
             // Pagination parameter
             if (source.pageParam.isNotBlank()) {
-                val actualPage = if (source.pageStartsAt == 0) page - 1 else page
+                val actualPage = (page - 1) + source.pageStartsAt
                 urlBuilder.addQueryParameter(source.pageParam, actualPage.toString())
             }
 
@@ -380,29 +379,24 @@ class MediaApiClient {
             }
         }
 
-        Log.d("ArtfluxDebug", "Received ${itemsArray.length()} posts from ${source.name}")
         val result = mutableListOf<MediaItem>()
-        var gifCount = 0
-        var videoCount = 0
         for (i in 0 until itemsArray.length()) {
             val obj = itemsArray.optJSONObject(i) ?: continue
             val item = mapJsonToMediaItem(source, obj, i)
             if (item != null) {
                 result.add(item)
-                if (item.mediaType == MediaType.GIF) gifCount++
-                if (item.mediaType == MediaType.VIDEO) videoCount++
             }
         }
-        Log.d("ArtfluxDebug", "Parsed ${result.size} posts: $gifCount GIF(s), $videoCount VIDEO(s)")
         return result
     }
 
     private fun mapJsonToMediaItem(source: MediaSourceConfig, obj: JSONObject, index: Int): MediaItem? {
         val rawImage = extractValue(obj, source.imageUrlField)
-        val rawThumb = extractValue(obj, source.thumbUrlField).ifBlank { rawImage }
+        val rawThumb = if (source.thumbUrlField.isNotBlank()) extractValue(obj, source.thumbUrlField) else ""
+        val rawSample = if (source.sampleUrlField.isNotBlank()) extractValue(obj, source.sampleUrlField) else ""
 
-        // Determine image, thumbnail, and sample URLs
-        val (finalImage, finalThumb, finalSample) = resolveUrls(source, obj, rawImage, rawThumb)
+        // Determine image, thumbnail, and sample URLs consistently respecting configured fields
+        val (finalImage, finalThumb, finalSample) = resolveUrls(source, obj, rawImage, rawThumb, rawSample)
         if (finalImage.isBlank()) return null
 
         val id = extractValue(obj, "id").ifBlank { "item-${source.id}-$index" }
@@ -415,9 +409,13 @@ class MediaApiClient {
             source.apiUrl.contains("danbooru") -> "https://danbooru.donmai.us/posts/$id"
             source.apiUrl.contains("yande.re") -> "https://yande.re/post/show/$id"
             source.apiUrl.contains("gelbooru.com") -> "https://gelbooru.com/index.php?page=post&s=view&id=$id"
-            else -> extractValue(obj, source.postUrlField).let {
-                if (it.isBlank()) null else fixUrl(it)
+            source.postUrlField.isNotBlank() -> {
+                val rawPost = extractValue(obj, source.postUrlField)
+                if (rawPost.isNotBlank() && (rawPost.contains("://") || rawPost.startsWith("//") || rawPost.startsWith("/"))) {
+                    fixUrl(rawPost)
+                } else null
             }
+            else -> null
         }
 
         // Tags parsing
@@ -482,6 +480,13 @@ class MediaApiClient {
         val height = obj.optInt("height", 0).takeIf { it > 0 } ?: obj.optInt("image_height", 0).takeIf { it > 0 }
         val fileSize = obj.optLong("file_size", 0L).takeIf { it > 0 }
 
+        // Metadata extraction for sorting accuracy
+        val score = obj.optInt("score", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+            ?: obj.optInt("up_score", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+        val favorites = obj.optInt("fav_count", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+            ?: obj.optInt("favorites", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+        val views = obj.optInt("views", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+
         return MediaItem(
             id = id,
             title = title,
@@ -498,7 +503,10 @@ class MediaApiClient {
             sourceName = source.name,
             description = obj.optString("alt_text", obj.optString("description", "")).ifBlank { null },
             fileSize = fileSize,
-            fileExt = fileExt
+            fileExt = fileExt,
+            score = score,
+            favorites = favorites,
+            views = views
         )
     }
 
@@ -506,7 +514,8 @@ class MediaApiClient {
         source: MediaSourceConfig,
         obj: JSONObject,
         rawImage: String,
-        rawThumb: String
+        rawThumb: String,
+        rawSample: String = ""
     ): Triple<String, String, String?> {
         // Safebooru handling
         if (source.apiUrl.contains("safebooru.org")) {
@@ -533,7 +542,7 @@ class MediaApiClient {
         // Danbooru handling
         if (source.apiUrl.contains("danbooru")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("large_file_url") } }
-            val sampleUrl = obj.optString("large_file_url").takeIf { it.isNotBlank() }
+            val sampleUrl = rawSample.ifBlank { obj.optString("large_file_url") }.takeIf { it.isNotBlank() }
             val previewUrl = rawThumb.ifBlank { obj.optString("preview_file_url").ifBlank { sampleUrl ?: fileUrl } }
             if (fileUrl.isNotBlank()) {
                 return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
@@ -544,17 +553,32 @@ class MediaApiClient {
         if (source.apiUrl.contains("yande.re")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("sample_url") } }
             val previewUrl = rawThumb.ifBlank { obj.optString("preview_url").ifBlank { obj.optString("sample_url") } }
-            val sampleUrl = obj.optString("sample_url").takeIf { it.isNotBlank() }
+            val sampleUrl = rawSample.ifBlank { obj.optString("sample_url") }.takeIf { it.isNotBlank() }
             if (fileUrl.isNotBlank()) {
                 return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
             }
         }
 
-        // Generic URL cleanup
+        // Generic URL resolution consistently respecting configured fields
         val full = fixUrl(rawImage)
-        val sample = obj.optString("sample_url").ifBlank { obj.optString("large_file_url") }.takeIf { it.isNotBlank() }?.let { fixUrl(it) }
-        val thumb = fixUrl(rawThumb.ifBlank { sample ?: rawImage })
-        return Triple(full, thumb, sample)
+        val sample = if (rawSample.isNotBlank()) fixUrl(rawSample) else null
+
+        fun isVideoUrl(url: String): Boolean {
+            val clean = url.substringBefore('?').lowercase()
+            return clean.endsWith(".mp4") || clean.endsWith(".webm") ||
+                    clean.endsWith(".mkv") || clean.endsWith(".mov")
+        }
+
+        // Never use a known video URL as a feed image thumbnail.
+        // Avoid falling back to the original full-resolution file when a safer preview is available.
+        val thumbCandidate = when {
+            rawThumb.isNotBlank() && !isVideoUrl(rawThumb) -> fixUrl(rawThumb)
+            sample != null && !isVideoUrl(sample) -> sample
+            !isVideoUrl(full) -> full
+            else -> ""
+        }
+
+        return Triple(full, thumbCandidate, sample)
     }
 
     private fun fixUrl(url: String): String {
