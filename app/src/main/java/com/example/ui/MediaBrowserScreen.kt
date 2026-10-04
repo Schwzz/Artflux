@@ -2,6 +2,7 @@ package com.example.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -33,22 +37,24 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.FilterState
+import com.example.model.MediaSourceConfig
 import com.example.ui.components.AddSourceDialog
 import com.example.ui.components.LightboxViewer
 import com.example.ui.components.MediaCard
@@ -72,6 +79,10 @@ import com.example.ui.theme.RoseBadge
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
+
+enum class MainTab {
+    HOME, SEARCH, SETTINGS
+}
 
 @Composable
 fun MediaBrowserScreen(
@@ -91,8 +102,11 @@ fun MediaBrowserScreen(
     val isSourcePickerOpen by viewModel.isSourcePickerOpen.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
 
+    var currentTab by remember { mutableStateOf(MainTab.HOME) }
+
     val snackbarHostState = remember { SnackbarHostState() }
-    val gridState = rememberLazyStaggeredGridState()
+    val homeGridState = rememberLazyStaggeredGridState()
+    val searchGridState = rememberLazyStaggeredGridState()
 
     // Show snackbar alerts
     LaunchedEffect(snackbarMsg) {
@@ -106,10 +120,11 @@ fun MediaBrowserScreen(
     }
 
     // Infinite scrolling trigger
+    val activeGridState = if (currentTab == MainTab.HOME) homeGridState else searchGridState
     val shouldLoadMore by remember {
         derivedStateOf {
-            val totalItems = gridState.layoutInfo.totalItemsCount
-            val lastVisibleItemIndex = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val totalItems = activeGridState.layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = activeGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             totalItems > 0 && lastVisibleItemIndex >= totalItems - 4
         }
     }
@@ -123,111 +138,82 @@ fun MediaBrowserScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            ArtfluxBottomBar(
+                currentTab = currentTab,
+                onTabSelected = { currentTab = it }
+            )
+        }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // App Header
-            TopBrandHeader()
-
-            // Source Selector Bar
-            SourceSelectorBar(
-                activeSource = activeSource,
-                onOpenPicker = { viewModel.openSourcePicker() },
-                onAddSourceClick = { viewModel.openAddSourceDialog() }
-            )
-
-            // Search Bar & Filter Controls
-            SearchBarAndFilters(
-                searchQuery = searchQuery,
-                onQueryChange = { viewModel.setSearchQuery(it) },
-                onSearch = { viewModel.executeSearch() },
-                filterState = filterState,
-                onFilterChange = { viewModel.setFilterState(it) },
-                activeSource = activeSource
-            )
-
-            // Main Content Area
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                when {
-                    isLoading -> {
-                        // Loading skeleton state
-                        LoadingSkeletonGrid()
-                    }
-
-                    errorMessage != null -> {
-                        // Error state
-                        ErrorStateView(
-                            errorMessage = errorMessage!!,
-                            onRetry = { viewModel.loadSourceData(isRefresh = true) }
-                        )
-                    }
-
-                    mediaItems.isEmpty() -> {
-                        // Empty state
-                        EmptyStateView(
-                            hasFilters = filterState.activeFilterCount > 0 || searchQuery.isNotBlank(),
-                            onReset = {
-                                viewModel.setSearchQuery("")
-                                viewModel.setFilterState(FilterState())
-                                viewModel.executeSearch()
-                            }
-                        )
-                    }
-
-                    else -> {
-                        // Responsive Media Staggered Grid
-                        LazyVerticalStaggeredGrid(
-                            columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
-                            state = gridState,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalItemSpacing = 10.dp,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .testTag("media_staggered_grid")
-                        ) {
-                            itemsIndexed(
-                                items = mediaItems,
-                                key = { index, item -> "${item.id}_$index" }
-                            ) { index, item ->
-                                MediaCard(
-                                    item = item,
-                                    onClick = { viewModel.openLightbox(index) },
-                                    onDownloadClick = { viewModel.downloadImage(item) },
-                                    onTagClick = { tag ->
-                                        viewModel.setSearchQuery(tag)
-                                        viewModel.executeSearch()
-                                    }
-                                )
-                            }
-
-                            // Infinite loading spinner item at bottom
-                            if (isLoadingMore) {
-                                item {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(
-                                            color = NeonIndigoLight,
-                                            strokeWidth = 2.dp,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                            }
+            when (currentTab) {
+                MainTab.HOME -> {
+                    HomeScreen(
+                        activeSource = activeSource,
+                        mediaItems = mediaItems,
+                        isLoading = isLoading,
+                        isLoadingMore = isLoadingMore,
+                        errorMessage = errorMessage,
+                        filterState = filterState,
+                        searchQuery = searchQuery,
+                        gridState = homeGridState,
+                        onOpenSourcePicker = { viewModel.openSourcePicker() },
+                        onRetry = { viewModel.loadSourceData(isRefresh = true) },
+                        onResetFilters = {
+                            viewModel.setSearchQuery("")
+                            viewModel.setFilterState(FilterState())
+                            viewModel.executeSearch()
+                        },
+                        onOpenLightbox = { viewModel.openLightbox(it) },
+                        onDownload = { viewModel.downloadImage(it) },
+                        onTagClick = { tag ->
+                            viewModel.setSearchQuery(tag)
+                            viewModel.executeSearch()
                         }
-                    }
+                    )
+                }
+                MainTab.SEARCH -> {
+                    SearchScreen(
+                        sources = sources,
+                        activeSource = activeSource,
+                        searchQuery = searchQuery,
+                        filterState = filterState,
+                        mediaItems = mediaItems,
+                        isLoading = isLoading,
+                        isLoadingMore = isLoadingMore,
+                        errorMessage = errorMessage,
+                        gridState = searchGridState,
+                        onQueryChange = { viewModel.setSearchQuery(it) },
+                        onSearch = { viewModel.executeSearch() },
+                        onFilterChange = { viewModel.setFilterState(it) },
+                        onSelectSource = { viewModel.setActiveSource(it) },
+                        onOpenPicker = { viewModel.openSourcePicker() },
+                        onAddSourceClick = { viewModel.openAddSourceDialog() },
+                        onRetry = { viewModel.loadSourceData(isRefresh = true) },
+                        onResetFilters = {
+                            viewModel.setSearchQuery("")
+                            viewModel.setFilterState(FilterState())
+                            viewModel.executeSearch()
+                        },
+                        onOpenLightbox = { viewModel.openLightbox(it) },
+                        onDownload = { viewModel.downloadImage(it) },
+                        onTagClick = { tag ->
+                            viewModel.setSearchQuery(tag)
+                            viewModel.executeSearch()
+                        }
+                    )
+                }
+                MainTab.SETTINGS -> {
+                    SettingsScreen(
+                        sources = sources,
+                        onAddSourceClick = { viewModel.openAddSourceDialog() },
+                        onDeleteSource = { viewModel.deleteSource(it) }
+                    )
                 }
             }
         }
@@ -278,43 +264,321 @@ fun MediaBrowserScreen(
 }
 
 @Composable
-fun TopBrandHeader() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+fun ArtfluxBottomBar(
+    currentTab: MainTab,
+    onTabSelected: (MainTab) -> Unit
+) {
+    NavigationBar(
+        containerColor = DarkSurface,
+        tonalElevation = 8.dp
     ) {
-        Box(
+        NavigationBarItem(
+            selected = currentTab == MainTab.HOME,
+            onClick = { onTabSelected(MainTab.HOME) },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+            label = { Text("Home") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = TextPrimary,
+                selectedTextColor = TextPrimary,
+                indicatorColor = NeonIndigo,
+                unselectedIconColor = TextSecondary,
+                unselectedTextColor = TextSecondary
+            ),
+            modifier = Modifier.testTag("nav_tab_home")
+        )
+        NavigationBarItem(
+            selected = currentTab == MainTab.SEARCH,
+            onClick = { onTabSelected(MainTab.SEARCH) },
+            icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+            label = { Text("Search") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = TextPrimary,
+                selectedTextColor = TextPrimary,
+                indicatorColor = NeonIndigo,
+                unselectedIconColor = TextSecondary,
+                unselectedTextColor = TextSecondary
+            ),
+            modifier = Modifier.testTag("nav_tab_search")
+        )
+        NavigationBarItem(
+            selected = currentTab == MainTab.SETTINGS,
+            onClick = { onTabSelected(MainTab.SETTINGS) },
+            icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
+            label = { Text("Settings") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = TextPrimary,
+                selectedTextColor = TextPrimary,
+                indicatorColor = NeonIndigo,
+                unselectedIconColor = TextSecondary,
+                unselectedTextColor = TextSecondary
+            ),
+            modifier = Modifier.testTag("nav_tab_settings")
+        )
+    }
+}
+
+@Composable
+fun HomeScreen(
+    activeSource: MediaSourceConfig,
+    mediaItems: List<com.example.model.MediaItem>,
+    isLoading: Boolean,
+    isLoadingMore: Boolean,
+    errorMessage: String?,
+    filterState: FilterState,
+    searchQuery: String,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    onOpenSourcePicker: () -> Unit,
+    onRetry: () -> Unit,
+    onResetFilters: () -> Unit,
+    onOpenLightbox: (Int) -> Unit,
+    onDownload: (com.example.model.MediaItem) -> Unit,
+    onTagClick: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Minimal Chrome Header
+        Row(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(NeonIndigo),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = TextPrimary,
-                modifier = Modifier.size(20.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(NeonIndigo),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = TextPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Artflux",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+
+            // Active Source Pill (taps to open source picker)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DarkSurfaceVariant)
+                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                    .clickable(onClick = onOpenSourcePicker)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("home_source_pill")
+            ) {
+                Text(
+                    text = activeSource.name,
+                    color = NeonIndigoLight,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
+        // Main Discovery Feed Area
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            when {
+                isLoading -> {
+                    LoadingSkeletonGrid()
+                }
 
-        Column {
-            Text(
-                text = "Artflux",
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp
-            )
-            Text(
-                text = "Anime Art Discovery",
-                color = TextTertiary,
-                fontSize = 11.sp
-            )
+                errorMessage != null -> {
+                    ErrorStateView(
+                        errorMessage = errorMessage,
+                        onRetry = onRetry
+                    )
+                }
+
+                mediaItems.isEmpty() -> {
+                    EmptyStateView(
+                        hasFilters = filterState.activeFilterCount > 0 || searchQuery.isNotBlank(),
+                        onReset = onResetFilters
+                    )
+                }
+
+                else -> {
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
+                        state = gridState,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalItemSpacing = 10.dp,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("media_staggered_grid")
+                    ) {
+                        itemsIndexed(
+                            items = mediaItems,
+                            key = { index, item -> "${item.id}_$index" }
+                        ) { index, item ->
+                            MediaCard(
+                                item = item,
+                                onClick = { onOpenLightbox(index) },
+                                onDownloadClick = { onDownload(item) },
+                                onTagClick = onTagClick
+                            )
+                        }
+
+                        if (isLoadingMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = NeonIndigoLight,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchScreen(
+    sources: List<MediaSourceConfig>,
+    activeSource: MediaSourceConfig,
+    searchQuery: String,
+    filterState: FilterState,
+    mediaItems: List<com.example.model.MediaItem>,
+    isLoading: Boolean,
+    isLoadingMore: Boolean,
+    errorMessage: String?,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onFilterChange: (FilterState) -> Unit,
+    onSelectSource: (MediaSourceConfig) -> Unit,
+    onOpenPicker: () -> Unit,
+    onAddSourceClick: () -> Unit,
+    onRetry: () -> Unit,
+    onResetFilters: () -> Unit,
+    onOpenLightbox: (Int) -> Unit,
+    onDownload: (com.example.model.MediaItem) -> Unit,
+    onTagClick: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Search Screen Header
+        Text(
+            text = "Explore & Search",
+            style = MaterialTheme.typography.titleLarge,
+            color = TextPrimary,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
+
+        // Source Selector Bar
+        SourceSelectorBar(
+            activeSource = activeSource,
+            onOpenPicker = onOpenPicker,
+            onAddSourceClick = onAddSourceClick
+        )
+
+        // Search Bar & Filter Controls (includes quick preset tags)
+        SearchBarAndFilters(
+            searchQuery = searchQuery,
+            onQueryChange = onQueryChange,
+            onSearch = onSearch,
+            filterState = filterState,
+            onFilterChange = onFilterChange,
+            activeSource = activeSource
+        )
+
+        // Search Results Feed
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            when {
+                isLoading -> {
+                    LoadingSkeletonGrid()
+                }
+
+                errorMessage != null -> {
+                    ErrorStateView(
+                        errorMessage = errorMessage,
+                        onRetry = onRetry
+                    )
+                }
+
+                mediaItems.isEmpty() -> {
+                    EmptyStateView(
+                        hasFilters = filterState.activeFilterCount > 0 || searchQuery.isNotBlank(),
+                        onReset = onResetFilters
+                    )
+                }
+
+                else -> {
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
+                        state = gridState,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalItemSpacing = 10.dp,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("search_results_grid")
+                    ) {
+                        itemsIndexed(
+                            items = mediaItems,
+                            key = { index, item -> "${item.id}_search_$index" }
+                        ) { index, item ->
+                            MediaCard(
+                                item = item,
+                                onClick = { onOpenLightbox(index) },
+                                onDownloadClick = { onDownload(item) },
+                                onTagClick = onTagClick
+                            )
+                        }
+
+                        if (isLoadingMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = NeonIndigoLight,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
