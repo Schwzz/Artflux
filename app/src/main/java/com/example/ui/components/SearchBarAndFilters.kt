@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.FilterState
 import com.example.model.MediaRating
+import com.example.model.MediaSourceConfig
 import com.example.model.MediaType
 import com.example.model.Orientation
 import com.example.model.SortOption
@@ -87,6 +88,7 @@ fun SearchBarAndFilters(
     onSearch: () -> Unit,
     filterState: FilterState,
     onFilterChange: (FilterState) -> Unit,
+    activeSource: MediaSourceConfig = MediaSourceConfig.BUILT_IN_SAFEBOORU,
     modifier: Modifier = Modifier
 ) {
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -231,6 +233,7 @@ fun SearchBarAndFilters(
     if (showFilterDialog) {
         FilterModalDialog(
             currentFilter = filterState,
+            activeSource = activeSource,
             onDismiss = { showFilterDialog = false },
             onApply = { newFilters ->
                 onFilterChange(newFilters)
@@ -243,13 +246,17 @@ fun SearchBarAndFilters(
 @Composable
 fun FilterModalDialog(
     currentFilter: FilterState,
+    activeSource: MediaSourceConfig = MediaSourceConfig.BUILT_IN_SAFEBOORU,
     onDismiss: () -> Unit,
     onApply: (FilterState) -> Unit
 ) {
     var sort by remember { mutableStateOf(currentFilter.sort) }
     var rating by remember { mutableStateOf(currentFilter.rating) }
     var orientation by remember { mutableStateOf(currentFilter.orientation) }
-    var mediaType by remember { mutableStateOf(currentFilter.mediaType) }
+    val supportedTypes = remember(activeSource) { activeSource.getSupportedMediaTypes() }
+    var mediaType by remember {
+        mutableStateOf(if (currentFilter.mediaType in supportedTypes) currentFilter.mediaType else MediaType.ALL)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -313,7 +320,7 @@ fun FilterModalDialog(
                 // Media Type Section
                 FilterSectionHeader("Media Type")
                 FilterChipGrid(
-                    options = MediaType.values().toList(),
+                    options = supportedTypes,
                     selected = mediaType,
                     labelExtractor = { it.label },
                     onSelect = { mediaType = it }

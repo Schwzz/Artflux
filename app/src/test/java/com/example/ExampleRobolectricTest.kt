@@ -53,7 +53,7 @@ class ExampleRobolectricTest {
     assertEquals("Danbooru", danbooru.name)
     assertTrue(danbooru.isBuiltIn)
     assertTrue(danbooru.apiUrl.contains("danbooru.donmai.us"))
-    assertEquals("animated", danbooru.gifQueryTag)
+    assertEquals("animated_gif", danbooru.gifQueryTag)
     assertEquals("webm", danbooru.videoQueryTag)
     assertEquals("rating:g", danbooru.safeRatingTag)
     assertEquals("rating:s,q", danbooru.suggestiveRatingTag)
@@ -280,16 +280,16 @@ class ExampleRobolectricTest {
       mediaType = MediaType.GIF,
       rating = MediaRating.ADULT
     )
-    assertEquals("hatsune_miku animated rating:e", query1)
+    assertEquals("hatsune_miku animated_gif rating:e", query1)
 
-    // User already typed "animated" and "rating:e"
+    // User already typed "animated_gif" and "rating:e"
     val query2 = QueryBuilder.buildEffectiveQuery(
-      userQuery = "animated hatsune_miku rating:e",
+      userQuery = "animated_gif hatsune_miku rating:e",
       source = danbooru,
       mediaType = MediaType.GIF,
       rating = MediaRating.ADULT
     )
-    assertEquals("animated hatsune_miku rating:e", query2)
+    assertEquals("animated_gif hatsune_miku rating:e", query2)
 
     // Danbooru Video + Suggestive
     val query3 = QueryBuilder.buildEffectiveQuery(
@@ -299,6 +299,22 @@ class ExampleRobolectricTest {
       rating = MediaRating.SUGGESTIVE
     )
     assertEquals("genshin webm rating:s,q", query3)
+  }
+
+  @Test
+  fun testSupportedMediaTypesPerSource() {
+    val safebooru = MediaSourceConfig.BUILT_IN_SAFEBOORU
+    val danbooru = MediaSourceConfig.BUILT_IN_DANBOORU
+    val yandere = MediaSourceConfig.BUILT_IN_YANDERE
+
+    assertTrue(safebooru.getSupportedMediaTypes().contains(MediaType.GIF))
+    assertFalse(safebooru.getSupportedMediaTypes().contains(MediaType.VIDEO))
+
+    assertTrue(danbooru.getSupportedMediaTypes().contains(MediaType.GIF))
+    assertTrue(danbooru.getSupportedMediaTypes().contains(MediaType.VIDEO))
+
+    assertFalse(yandere.getSupportedMediaTypes().contains(MediaType.GIF))
+    assertFalse(yandere.getSupportedMediaTypes().contains(MediaType.VIDEO))
   }
 
   // --- 5. Pagination & Source Switching in ViewModel ---

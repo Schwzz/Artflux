@@ -136,11 +136,23 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     fun setActiveSource(source: MediaSourceConfig) {
         if (_activeSource.value.id == source.id) return
         _activeSource.value = source
+        // If current mediaType filter is not supported by the new source, reset to ALL
+        val supportedTypes = source.getSupportedMediaTypes()
+        if (_filterState.value.mediaType !in supportedTypes) {
+            _filterState.value = _filterState.value.copy(mediaType = MediaType.ALL)
+        }
         _rawItems.value = emptyList()
         loadSourceData(source = source, query = _searchQuery.value, isRefresh = true)
     }
 
     fun setFilterState(newFilters: FilterState) {
+        val supportedTypes = _activeSource.value.getSupportedMediaTypes()
+        val sanitizedFilters = if (newFilters.mediaType !in supportedTypes) {
+            newFilters.copy(mediaType = MediaType.ALL)
+        } else {
+            newFilters
+        }
+
         val oldFilters = _filterState.value
         val oldEffectiveQuery = QueryBuilder.buildEffectiveQuery(
             userQuery = _searchQuery.value,
@@ -151,11 +163,11 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         val newEffectiveQuery = QueryBuilder.buildEffectiveQuery(
             userQuery = _searchQuery.value,
             source = _activeSource.value,
-            mediaType = newFilters.mediaType,
-            rating = newFilters.rating
+            mediaType = sanitizedFilters.mediaType,
+            rating = sanitizedFilters.rating
         )
 
-        _filterState.value = newFilters
+        _filterState.value = sanitizedFilters
 
         // If the source-specific effective query changed, trigger a fresh page 1 load
         if (oldEffectiveQuery != newEffectiveQuery) {
@@ -209,6 +221,16 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                     }
                 }
                 currentPage++
+
+                // Client-side fallback pagination: if a specific media type is requested
+                // and the current filtered result is empty, auto-fetch next page (up to page 4)
+                val targetType = _filterState.value.mediaType
+                if (targetType != MediaType.ALL && newItems.isNotEmpty() && currentPage <= 4) {
+                    val hasMatch = _rawItems.value.any { it.mediaType == targetType }
+                    if (!hasMatch && !hasReachedEnd) {
+                        loadSourceData(source = source, query = query, isRefresh = false)
+                    }
+                }
             }.onFailure { error ->
                 if (isRefresh) {
                     _errorMessage.value = error.message ?: "Failed to connect to source."

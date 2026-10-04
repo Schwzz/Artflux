@@ -146,7 +146,8 @@ fun MediaBrowserScreen(
                 onQueryChange = { viewModel.setSearchQuery(it) },
                 onSearch = { viewModel.executeSearch() },
                 filterState = filterState,
-                onFilterChange = { viewModel.setFilterState(it) }
+                onFilterChange = { viewModel.setFilterState(it) },
+                activeSource = activeSource
             )
 
             // Main Content Area

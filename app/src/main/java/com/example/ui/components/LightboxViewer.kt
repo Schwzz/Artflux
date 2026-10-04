@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -120,45 +124,72 @@ fun LightboxViewer(
     ) {
         // Main Media Display: Video (ExoPlayer) or Image/GIF (Coil)
         if (item.mediaType == MediaType.VIDEO) {
-            // Media3 / ExoPlayer Video Player
-            val exoPlayer = remember(item.id) {
-                ExoPlayer.Builder(context).build().apply {
-                    val media3Item = Media3Item.fromUri(Uri.parse(item.imageUrl))
-                    setMediaItem(media3Item)
-                    repeatMode = Player.REPEAT_MODE_ONE
-                    playWhenReady = true
-                    prepare()
-                }
-            }
+            key(item.id) {
+                val lifecycleOwner = LocalLifecycleOwner.current
 
-            DisposableEffect(item.id) {
-                onDispose {
-                    exoPlayer.stop()
-                    exoPlayer.release()
+                // Media3 / ExoPlayer Video Player
+                val exoPlayer = remember(item.id) {
+                    ExoPlayer.Builder(context).build().apply {
+                        val media3Item = Media3Item.fromUri(Uri.parse(item.imageUrl))
+                        setMediaItem(media3Item)
+                        repeatMode = Player.REPEAT_MODE_ONE
+                        playWhenReady = true
+                        prepare()
+                    }
                 }
-            }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 70.dp, horizontal = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                            useController = true
-                            setShowNextButton(false)
-                            setShowPreviousButton(false)
-                            layoutParams = FrameLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
+                DisposableEffect(item.id) {
+                    onDispose {
+                        exoPlayer.pause()
+                        exoPlayer.stop()
+                        exoPlayer.clearMediaItems()
+                        exoPlayer.release()
+                    }
+                }
+
+                // Pause video playback when app is paused/stopped or screen turned off
+                DisposableEffect(lifecycleOwner, exoPlayer) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        when (event) {
+                            Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                                exoPlayer.pause()
+                            }
+                            else -> {}
                         }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 70.dp, horizontal = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = true
+                                setShowNextButton(false)
+                                setShowPreviousButton(false)
+                                layoutParams = FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                            }
+                        },
+                        update = { playerView ->
+                            if (playerView.player != exoPlayer) {
+                                playerView.player = exoPlayer
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         } else {
             // Image / Animated GIF Display with Pinch-to-Zoom

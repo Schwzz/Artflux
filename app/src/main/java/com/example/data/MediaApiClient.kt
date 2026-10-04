@@ -165,23 +165,29 @@ class MediaApiClient {
         }
 
         // Media type detection (GIF, VIDEO, IMAGE)
+        val fileExt = obj.optString("file_ext").lowercase().trim()
         val typeStr = extractValue(obj, source.mediaTypeField).lowercase()
         val imageExt = finalImage.substringAfterLast('.', "").substringBefore('?').lowercase()
         val rawImageExt = rawImage.substringAfterLast('.', "").substringBefore('?').lowercase()
         val safebooruImageField = obj.optString("image").lowercase()
 
-        val isGif = typeStr.contains("gif") ||
+        val isGif = fileExt == "gif" ||
                 imageExt == "gif" ||
                 rawImageExt == "gif" ||
-                safebooruImageField.endsWith(".gif")
+                safebooruImageField.endsWith(".gif") ||
+                typeStr == "gif" ||
+                typeStr.contains("gif")
 
-        val isVideo = typeStr.contains("video") ||
-                typeStr.contains("mp4") ||
-                typeStr.contains("webm") ||
+        val isVideo = !isGif && (
+                fileExt in listOf("mp4", "webm", "mkv", "mov") ||
                 imageExt in listOf("mp4", "webm", "mkv", "mov") ||
                 rawImageExt in listOf("mp4", "webm", "mkv", "mov") ||
                 safebooruImageField.endsWith(".mp4") ||
-                safebooruImageField.endsWith(".webm")
+                safebooruImageField.endsWith(".webm") ||
+                typeStr.contains("video") ||
+                typeStr.contains("mp4") ||
+                typeStr.contains("webm")
+        )
 
         val mediaType = when {
             isVideo -> MediaType.VIDEO

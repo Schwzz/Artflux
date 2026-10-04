@@ -33,6 +33,19 @@ data class MediaSourceConfig(
     val suggestiveRatingTag: String = "",
     val adultRatingTag: String = ""
 ) {
+    val supportsGifs: Boolean
+        get() = gifQueryTag.isNotBlank()
+
+    val supportsVideos: Boolean
+        get() = videoQueryTag.isNotBlank()
+
+    fun getSupportedMediaTypes(): List<MediaType> {
+        val list = mutableListOf(MediaType.ALL, MediaType.IMAGE)
+        if (supportsGifs) list.add(MediaType.GIF)
+        if (supportsVideos) list.add(MediaType.VIDEO)
+        return list
+    }
+
     fun toJson(): JSONObject {
         val json = JSONObject()
         json.put("id", id)
@@ -141,11 +154,12 @@ data class MediaSourceConfig(
             postUrlField = "id",
             tagsField = "tag_string",
             ratingField = "rating",
+            mediaTypeField = "file_ext",
             titleField = "tag_string",
             authorField = "tag_string_artist",
             isBuiltIn = true,
             description = "Premier anime image board with extensive tagging and ratings",
-            gifQueryTag = "animated",
+            gifQueryTag = "animated_gif",
             videoQueryTag = "webm",
             safeRatingTag = "rating:g",
             suggestiveRatingTag = "rating:s,q",
@@ -167,6 +181,7 @@ data class MediaSourceConfig(
             postUrlField = "id",
             tagsField = "tags",
             ratingField = "rating",
+            mediaTypeField = "file_ext",
             titleField = "tags",
             authorField = "author",
             isBuiltIn = true,
