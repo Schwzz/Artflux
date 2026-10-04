@@ -54,9 +54,7 @@ import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.MagentaAccent
 import com.example.ui.theme.NeonIndigo
 import com.example.ui.theme.RoseBadge
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
+import androidx.compose.material3.MaterialTheme
 import com.example.util.ArtfluxImageLoader
 
 @Composable
@@ -75,19 +73,9 @@ fun MediaCard(
     val isNsfw = item.rating == MediaRating.ADULT
     val shouldBlur = blurNsfw && isNsfw
 
-    // Primary URL selection
-    val primaryDisplayUrl = when (item.mediaType) {
-        MediaType.GIF -> item.imageUrl
-        MediaType.VIDEO -> item.thumbnailUrl
-        else -> item.getThumbnailForQuality(quality)
-    }
-
-    // Fallback URL if primary fails
-    val fallbackDisplayUrl = when (item.mediaType) {
-        MediaType.GIF -> item.imageUrl
-        MediaType.VIDEO -> item.thumbnailUrl
-        else -> item.getThumbnailFallbackUrl(quality)
-    }
+    // Primary URL selection respecting selected thumbnail quality (360p, 480p, 720p, 1080p)
+    val primaryDisplayUrl = item.getThumbnailForQuality(quality)
+    val fallbackDisplayUrl = item.getThumbnailFallbackUrl(quality)
 
     var isPrimaryFailed by remember(item.id, quality) { mutableStateOf(false) }
 
@@ -99,7 +87,7 @@ fun MediaCard(
             .testTag("media_item_card_${item.id}"),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurface
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -107,9 +95,9 @@ fun MediaCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(item.aspectRatio)
-                .background(Color(0xFF131A29))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            // Media Image with optional NSFW blur
+            // Media Image with optional NSFW blur (No badges, text, or eye icon overlay when blurred)
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(if (isPrimaryFailed) fallbackDisplayUrl else primaryDisplayUrl)
@@ -120,7 +108,7 @@ fun MediaCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(if (shouldBlur) Modifier.blur(18.dp) else Modifier),
+                    .then(if (shouldBlur) Modifier.blur(22.dp) else Modifier),
                 loading = {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -141,7 +129,7 @@ fun MediaCard(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(DarkSurfaceVariant),
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -151,13 +139,13 @@ fun MediaCard(
                                 Icon(
                                     imageVector = Icons.Default.Image,
                                     contentDescription = "Preview unavailable",
-                                    tint = TextTertiary,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = item.sourceName,
-                                    color = TextTertiary,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -167,48 +155,13 @@ fun MediaCard(
                 }
             )
 
-            // Adult content warning badge overlay when blurred
-            if (shouldBlur) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.35f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.75f))
-                            .border(1.dp, RoseBadge.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                            .testTag("nsfw_blur_badge_${item.id}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VisibilityOff,
-                            contentDescription = "NSFW Blurred",
-                            tint = RoseBadge,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "18+ NSFW",
-                            color = TextPrimary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            // Centered Play Button overlay for Videos
+            // Centered Play Button overlay for Videos (Only if not blurred)
             if (item.mediaType == MediaType.VIDEO && !shouldBlur) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(DarkBackground.copy(alpha = 0.7f))
+                        .background(Color.Black.copy(alpha = 0.6f))
                         .align(Alignment.Center),
                     contentAlignment = Alignment.Center
                 ) {
@@ -221,43 +174,45 @@ fun MediaCard(
                 }
             }
 
-            // Subtle Media Indicator Badge (GIF or VIDEO)
-            when (item.mediaType) {
-                MediaType.GIF -> {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MagentaAccent.copy(alpha = 0.85f))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "GIF",
-                            color = TextPrimary,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+            // Subtle Media Indicator Badge (GIF or VIDEO) - Only if not blurred
+            if (!shouldBlur) {
+                when (item.mediaType) {
+                    MediaType.GIF -> {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MagentaAccent.copy(alpha = 0.85f))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "GIF",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
-                }
-                MediaType.VIDEO -> {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(CyanAccent.copy(alpha = 0.85f))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "VIDEO",
-                            color = DarkBackground,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    MediaType.VIDEO -> {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(CyanAccent.copy(alpha = 0.85f))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "VIDEO",
+                                color = Color.Black,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
+                    else -> {}
                 }
-                else -> {}
             }
         }
     }

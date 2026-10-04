@@ -248,14 +248,21 @@ fun LightboxViewer(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(pageItem.id) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                if (scale > 1f) {
-                                    val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                                    val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                                    offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
-                                    offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
+                            detectTransformGestures(panZoomLock = true) { _, pan, zoom, _ ->
+                                val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                if (zoom != 1f || scale > 1.02f) {
+                                    scale = newScale
+                                    if (scale > 1f) {
+                                        val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                        val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                        offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
+                                        offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
+                                    } else {
+                                        offsetX = 0f
+                                        offsetY = 0f
+                                    }
                                 } else {
+                                    scale = 1f
                                     offsetX = 0f
                                     offsetY = 0f
                                 }

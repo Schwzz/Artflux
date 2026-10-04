@@ -20,15 +20,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -55,13 +57,18 @@ import com.example.model.AppTheme
 import com.example.model.MediaSourceConfig
 import com.example.model.ThumbnailQuality
 import com.example.ui.theme.CardBorder
+import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.DarkBackground
 import com.example.ui.theme.DarkSurface
 import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.EmeraldSafe
+import com.example.ui.theme.MagentaAccent
 import com.example.ui.theme.NeonIndigo
 import com.example.ui.theme.NeonIndigoLight
+import com.example.ui.theme.RoseBadge
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.TextTertiary
 
 @Composable
 fun SettingsScreen(
@@ -75,13 +82,16 @@ fun SettingsScreen(
     loopVideo: Boolean,
     onLoopVideoChange: (Boolean) -> Unit,
     onAddSourceClick: () -> Unit,
-    onDeleteSource: (String) -> Unit,
+    onEditSource: (MediaSourceConfig) -> Unit = {},
+    onTestSource: (MediaSourceConfig) -> Unit = {},
+    onExportSource: (MediaSourceConfig) -> Unit = {},
+    onDeleteSource: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
@@ -89,7 +99,7 @@ fun SettingsScreen(
         Text(
             text = "Settings & Configuration",
             style = MaterialTheme.typography.titleLarge,
-            color = TextPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 20.dp)
         )
@@ -331,52 +341,156 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 sources.forEach { source ->
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(DarkSurfaceVariant)
-                            .padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(12.dp)
+                            .testTag("settings_source_card_${source.id}")
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = source.name,
-                                color = TextPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = source.apiUrl,
-                                color = TextSecondary,
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-                        if (!source.isBuiltIn) {
-                            IconButton(
-                                onClick = { onDeleteSource(source.id) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete custom source",
-                                    tint = Color(0xFFEF4444),
-                                    modifier = Modifier.size(18.dp)
+                        // Title & Type Badge
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = source.name,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = source.apiUrl,
+                                    color = TextSecondary,
+                                    fontSize = 11.sp,
+                                    maxLines = 1
                                 )
                             }
-                        } else {
-                            Box(
+
+                            if (source.isBuiltIn) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(NeonIndigo.copy(alpha = 0.25f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Built-in",
+                                        color = NeonIndigoLight,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(CyanAccent.copy(alpha = 0.2f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Custom",
+                                        color = CyanAccent,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Feature Pills
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (source.supportsGifs) {
+                                SmallFeaturePill("GIF", MagentaAccent)
+                            }
+                            if (source.supportsVideos) {
+                                SmallFeaturePill("VIDEO", CyanAccent)
+                            }
+                            if (source.hasAuthentication) {
+                                SmallFeaturePill("AUTH", EmeraldSafe)
+                            }
+                            if (source.safeRatingTag.isNotBlank() || source.adultRatingTag.isNotBlank()) {
+                                SmallFeaturePill("RATINGS", NeonIndigoLight)
+                            }
+                        }
+
+                        // Action Buttons Bar (Test, Export, Edit, Delete)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Test Diagnostics Button
+                            IconButton(
+                                onClick = { onTestSource(source) },
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(NeonIndigo.copy(alpha = 0.2f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .size(32.dp)
+                                    .testTag("test_source_action_${source.id}")
                             ) {
-                                Text("Built-in", color = NeonIndigoLight, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                Icon(
+                                    imageVector = Icons.Default.Speed,
+                                    contentDescription = "Test source diagnostics",
+                                    tint = NeonIndigoLight,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            // Export Config Button
+                            IconButton(
+                                onClick = { onExportSource(source) },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .testTag("export_source_action_${source.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Export sanitized configuration",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            if (!source.isBuiltIn) {
+                                // Edit Custom Source Button
+                                IconButton(
+                                    onClick = { onEditSource(source) },
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .testTag("edit_source_action_${source.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit source",
+                                        tint = CyanAccent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                // Delete Custom Source Button
+                                IconButton(
+                                    onClick = { onDeleteSource(source.id) },
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .testTag("delete_source_action_${source.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete custom source",
+                                        tint = RoseBadge,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -423,7 +537,7 @@ fun SettingsScreen(
                         modifier = Modifier.testTag("about_artflux_title")
                     )
                     Text(
-                        text = "Version 1.0",
+                        text = "Version 2.0 (Add Source 2.0)",
                         color = NeonIndigoLight,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
@@ -433,6 +547,23 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun SmallFeaturePill(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 5.dp, vertical = 1.dp)
+    ) {
+        Text(
+            text = text,
+            color = color,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -464,8 +595,8 @@ fun SettingsCard(content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(CardBorder))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(MaterialTheme.colorScheme.outline))
     ) {
         content()
     }

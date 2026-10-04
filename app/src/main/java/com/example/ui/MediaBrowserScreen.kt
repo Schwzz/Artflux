@@ -56,6 +56,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -99,6 +100,7 @@ import com.example.ui.components.DownloadConfigDialog
 import com.example.ui.components.LightboxViewer
 import com.example.ui.components.MediaCard
 import com.example.ui.components.PRESET_TAGS
+import com.example.ui.components.SourceDiagnosticsDialog
 import com.example.ui.components.SourcePickerBottomSheet
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.DarkBackground
@@ -132,6 +134,10 @@ fun MediaBrowserScreen(
     val lightboxIndex by viewModel.lightboxIndex.collectAsStateWithLifecycle()
     val lightboxItems by viewModel.lightboxItems.collectAsStateWithLifecycle()
     val isAddSourceOpen by viewModel.isAddSourceOpen.collectAsStateWithLifecycle()
+    val editingSourceConfig by viewModel.editingSourceConfig.collectAsStateWithLifecycle()
+    val diagnosticSource by viewModel.diagnosticSource.collectAsStateWithLifecycle()
+    val diagnosticReport by viewModel.diagnosticReport.collectAsStateWithLifecycle()
+    val isDiagnosing by viewModel.isDiagnosing.collectAsStateWithLifecycle()
     val isSourcePickerOpen by viewModel.isSourcePickerOpen.collectAsStateWithLifecycle()
     val downloadTargetItem by viewModel.downloadTargetItem.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
@@ -184,7 +190,7 @@ fun MediaBrowserScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = DarkBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             ArtfluxBottomBar(
@@ -253,6 +259,7 @@ fun MediaBrowserScreen(
                     )
                 }
                 MainTab.SETTINGS -> {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     SettingsScreen(
                         sources = sources,
                         theme = theme,
@@ -263,7 +270,15 @@ fun MediaBrowserScreen(
                         onThumbnailQualityChange = { viewModel.setThumbnailQuality(it) },
                         loopVideo = loopVideo,
                         onLoopVideoChange = { viewModel.setLoopVideoPlayback(it) },
-                        onAddSourceClick = { viewModel.openAddSourceDialog() },
+                        onAddSourceClick = { viewModel.openAddSourceDialog(null) },
+                        onEditSource = { viewModel.openAddSourceDialog(it) },
+                        onTestSource = { viewModel.openSourceDiagnostics(it) },
+                        onExportSource = { source ->
+                            val json = viewModel.exportSourceConfig(source)
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("${source.name} Config", json)
+                            clipboard?.setPrimaryClip(clip)
+                        },
                         onDeleteSource = { viewModel.deleteSource(it) }
                     )
                 }
@@ -312,19 +327,34 @@ fun MediaBrowserScreen(
                 }
             },
             onDeleteSource = { viewModel.deleteSource(it) },
-            onAddNewSource = { viewModel.openAddSourceDialog() },
+            onAddNewSource = { viewModel.openAddSourceDialog(null) },
             onDismiss = { viewModel.closeSourcePicker() }
         )
     }
 
-    // Add / Edit Source Dialog
+    // Add / Edit Source Dialog (Add Source 2.0 Flow)
     if (isAddSourceOpen) {
         AddSourceDialog(
-            initialConfig = null,
+            initialConfig = editingSourceConfig,
             onDismiss = { viewModel.closeAddSourceDialog() },
             onSave = { newSource ->
-                viewModel.addCustomSource(newSource)
+                if (editingSourceConfig != null) {
+                    viewModel.updateCustomSource(newSource)
+                } else {
+                    viewModel.addCustomSource(newSource)
+                }
             }
+        )
+    }
+
+    // Source Diagnostics Dialog (from Settings / Diagnostics)
+    diagnosticSource?.let { sourceToTest ->
+        SourceDiagnosticsDialog(
+            source = sourceToTest,
+            report = diagnosticReport,
+            isLoading = isDiagnosing,
+            onRunDiagnostics = { viewModel.runDiagnosticsForSource(sourceToTest) },
+            onDismiss = { viewModel.dismissSourceDiagnostics() }
         )
     }
 
@@ -358,7 +388,7 @@ fun ArtfluxBottomBar(
     onTabSelected: (MainTab) -> Unit
 ) {
     NavigationBar(
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
     ) {
         NavigationBarItem(
@@ -367,11 +397,11 @@ fun ArtfluxBottomBar(
             icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
             label = { Text("Home") },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = TextPrimary,
-                selectedTextColor = TextPrimary,
-                indicatorColor = NeonIndigo,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
+                selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                indicatorColor = NeonIndigo.copy(alpha = 0.25f),
+                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
             modifier = Modifier.testTag("nav_tab_home")
         )
@@ -381,11 +411,11 @@ fun ArtfluxBottomBar(
             icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
             label = { Text("Search") },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = TextPrimary,
-                selectedTextColor = TextPrimary,
-                indicatorColor = NeonIndigo,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
+                selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                indicatorColor = NeonIndigo.copy(alpha = 0.25f),
+                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
             modifier = Modifier.testTag("nav_tab_search")
         )
@@ -395,11 +425,11 @@ fun ArtfluxBottomBar(
             icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
             label = { Text("Settings") },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = TextPrimary,
-                selectedTextColor = TextPrimary,
-                indicatorColor = NeonIndigo,
-                unselectedIconColor = TextSecondary,
-                unselectedTextColor = TextSecondary
+                selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                indicatorColor = NeonIndigo.copy(alpha = 0.25f),
+                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
             modifier = Modifier.testTag("nav_tab_settings")
         )
@@ -451,7 +481,7 @@ fun HomeScreen(
                 Text(
                     text = "Artflux",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -461,8 +491,8 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
-                    .background(DarkSurfaceVariant)
-                    .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                     .clickable(onClick = onOpenFeedSettings)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .testTag("home_feed_settings_button")
@@ -477,7 +507,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = homeState.activeSource.name,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -605,7 +635,7 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DarkSurface)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             // Top Row: Collapsible Search Input / Search Trigger
@@ -620,7 +650,7 @@ fun SearchScreen(
                     placeholder = {
                         Text(
                             text = "Search tags, artists, concepts...",
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                     },
@@ -645,7 +675,7 @@ fun SearchScreen(
                                     Icon(
                                         imageVector = Icons.Default.Clear,
                                         contentDescription = "Clear search",
-                                        tint = TextSecondary,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -660,7 +690,7 @@ fun SearchScreen(
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Collapse search",
-                                    tint = TextTertiary,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -669,12 +699,12 @@ fun SearchScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = DarkBackground,
-                        unfocusedContainerColor = DarkBackground,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedBorderColor = NeonIndigo,
-                        unfocusedBorderColor = CardBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     ),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = {
@@ -691,8 +721,8 @@ fun SearchScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(DarkBackground)
-                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                         .clickable { isSearchExpanded = true }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                         .testTag("collapsed_search_trigger"),
@@ -713,7 +743,7 @@ fun SearchScreen(
                         if (searchState.searchQuery.isNotBlank()) {
                             Text(
                                 text = searchState.searchQuery,
-                                color = TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -722,7 +752,7 @@ fun SearchScreen(
                         } else {
                             Text(
                                 text = "Search tags, artists, concepts...",
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp
                             )
                         }
@@ -739,7 +769,7 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = "Clear search",
-                                tint = TextSecondary,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -760,8 +790,8 @@ fun SearchScreen(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(DarkBackground)
-                        .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
                         .clickable(onClick = onOpenPicker)
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                         .testTag("search_source_selector"),
@@ -771,14 +801,14 @@ fun SearchScreen(
                     Column {
                         Text(
                             text = "SOURCE",
-                            color = TextTertiary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
                         )
                         Text(
                             text = searchState.activeSource.name,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -795,12 +825,12 @@ fun SearchScreen(
                 Button(
                     onClick = { isFilterSheetOpen = true },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (searchState.filterState.activeFilterCount > 0) NeonIndigo else DarkBackground
+                        containerColor = if (searchState.filterState.activeFilterCount > 0) NeonIndigo else MaterialTheme.colorScheme.surfaceVariant
                     ),
                     shape = RoundedCornerShape(10.dp),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (searchState.filterState.activeFilterCount > 0) NeonIndigoLight else CardBorder
+                        if (searchState.filterState.activeFilterCount > 0) NeonIndigoLight else MaterialTheme.colorScheme.outline
                     ),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     modifier = Modifier.testTag("search_filter_button")
@@ -808,13 +838,13 @@ fun SearchScreen(
                     Icon(
                         imageVector = Icons.Default.FilterList,
                         contentDescription = "Open filters",
-                        tint = if (searchState.filterState.activeFilterCount > 0) TextPrimary else NeonIndigoLight,
+                        tint = if (searchState.filterState.activeFilterCount > 0) Color.White else NeonIndigoLight,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (searchState.filterState.activeFilterCount > 0) "Filter (${searchState.filterState.activeFilterCount})" else "Filter",
-                        color = if (searchState.filterState.activeFilterCount > 0) TextPrimary else TextSecondary,
+                        color = if (searchState.filterState.activeFilterCount > 0) Color.White else MaterialTheme.colorScheme.onSurface,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1402,13 +1432,13 @@ fun EmptyStateView(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
-                    .background(DarkSurfaceVariant),
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.SearchOff,
                     contentDescription = null,
-                    tint = TextSecondary,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(36.dp)
                 )
             }
@@ -1418,13 +1448,13 @@ fun EmptyStateView(
             Text(
                 text = "No Media Found",
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
                 text = if (hasFilters) "No results match your active search and filter criteria." else "This source returned no items for the current page.",
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
@@ -1443,7 +1473,7 @@ fun EmptyStateView(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Reset Search & Filters", color = TextPrimary)
+                    Text("Reset Search & Filters", color = Color.White)
                 }
             }
         }
@@ -1486,13 +1516,13 @@ fun ErrorStateView(
             Text(
                 text = "Failed to Fetch Media",
                 style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
                 text = errorMessage,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -1511,7 +1541,7 @@ fun ErrorStateView(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Retry Connection", color = TextPrimary)
+                Text("Retry Connection", color = Color.White)
             }
         }
     }

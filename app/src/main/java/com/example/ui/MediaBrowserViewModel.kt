@@ -78,6 +78,18 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val _isAddSourceOpen = MutableStateFlow(false)
     val isAddSourceOpen: StateFlow<Boolean> = _isAddSourceOpen.asStateFlow()
 
+    private val _editingSourceConfig = MutableStateFlow<MediaSourceConfig?>(null)
+    val editingSourceConfig: StateFlow<MediaSourceConfig?> = _editingSourceConfig.asStateFlow()
+
+    private val _diagnosticSource = MutableStateFlow<MediaSourceConfig?>(null)
+    val diagnosticSource: StateFlow<MediaSourceConfig?> = _diagnosticSource.asStateFlow()
+
+    private val _diagnosticReport = MutableStateFlow<com.example.model.SourceDiagnosticReport?>(null)
+    val diagnosticReport: StateFlow<com.example.model.SourceDiagnosticReport?> = _diagnosticReport.asStateFlow()
+
+    private val _isDiagnosing = MutableStateFlow(false)
+    val isDiagnosing: StateFlow<Boolean> = _isDiagnosing.asStateFlow()
+
     private val _isSourcePickerOpen = MutableStateFlow(false)
     val isSourcePickerOpen: StateFlow<Boolean> = _isSourcePickerOpen.asStateFlow()
     private var sourcePickerTarget: String = "home" // "home" or "search"
@@ -541,7 +553,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     // ==========================================
-    // SOURCE MANAGEMENT
+    // SOURCE MANAGEMENT & DIAGNOSTICS
     // ==========================================
 
     fun addCustomSource(source: MediaSourceConfig) {
@@ -552,7 +564,21 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
             setHomeSource(source)
         }
         _isAddSourceOpen.value = false
-        _snackbarMessage.value = "Source '${source.name}' added successfully!"
+        _editingSourceConfig.value = null
+        _snackbarMessage.value = "Source '${source.name}' saved successfully!"
+    }
+
+    fun updateCustomSource(source: MediaSourceConfig) {
+        repository.updateSource(source)
+        if (_homeState.value.activeSource.id == source.id) {
+            setHomeSource(source)
+        }
+        if (_searchState.value.activeSource.id == source.id) {
+            setSearchSource(source)
+        }
+        _isAddSourceOpen.value = false
+        _editingSourceConfig.value = null
+        _snackbarMessage.value = "Source '${source.name}' updated."
     }
 
     fun deleteSource(sourceId: String) {
@@ -569,12 +595,14 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _snackbarMessage.value = "Source removed."
     }
 
-    fun openAddSourceDialog() {
+    fun openAddSourceDialog(initialConfig: MediaSourceConfig? = null) {
+        _editingSourceConfig.value = initialConfig
         _isAddSourceOpen.value = true
     }
 
     fun closeAddSourceDialog() {
         _isAddSourceOpen.value = false
+        _editingSourceConfig.value = null
     }
 
     fun openSourcePicker(target: String = "home") {
@@ -584,6 +612,33 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     fun closeSourcePicker() {
         _isSourcePickerOpen.value = false
+    }
+
+    fun openSourceDiagnostics(source: MediaSourceConfig) {
+        _diagnosticSource.value = source
+        runDiagnosticsForSource(source)
+    }
+
+    fun runDiagnosticsForSource(source: MediaSourceConfig) {
+        viewModelScope.launch {
+            _isDiagnosing.value = true
+            _diagnosticReport.value = null
+            val report = apiClient.diagnoseSource(source)
+            _diagnosticReport.value = report
+            _isDiagnosing.value = false
+        }
+    }
+
+    fun dismissSourceDiagnostics() {
+        _diagnosticSource.value = null
+        _diagnosticReport.value = null
+        _isDiagnosing.value = false
+    }
+
+    fun exportSourceConfig(source: MediaSourceConfig): String {
+        val json = source.toExportJson(sanitizeSecrets = true)
+        _snackbarMessage.value = "Sanitized config for '${source.name}' copied to clipboard!"
+        return json
     }
 
     // ==========================================

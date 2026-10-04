@@ -641,5 +641,305 @@ class ExampleRobolectricTest {
     val fallbackFor360 = item.getThumbnailFallbackUrl(com.example.model.ThumbnailQuality.Q360)
     assertEquals("https://cdn.booru.org/sample.jpg", fallbackFor360)
   }
+
+  // --- 15. Structured JSON Import & Parsing Tests (Batch 6) ---
+
+  @Test
+  fun testStructuredJsonImportAndParsing() {
+    val structuredJson = """
+      {
+        "name": "ArtStation Search",
+        "apiUrl": "https://api.artstation.com/v2/community/explore/projects.json",
+        "searchParam": "query",
+        "pageParam": "page",
+        "pageStartsAt": 1,
+        "pageSizeParam": "per_page",
+        "defaultPageSize": 30,
+        "itemsPath": "data",
+        "imageUrlField": "cover.large_image_url",
+        "thumbUrlField": "cover.small_image_url",
+        "sampleUrlField": "cover.medium_image_url",
+        "postUrlField": "permalink",
+        "tagsField": "tags",
+        "ratingField": "rating",
+        "gifQueryTag": "animated",
+        "videoQueryTag": "video",
+        "safeRatingTag": "purity:safe",
+        "suggestiveRatingTag": "purity:sketchy",
+        "adultRatingTag": "purity:nsfw",
+        "authentication": {
+          "type": "query",
+          "parameters": {
+            "api_key": "abc123secret",
+            "client_id": "client999"
+          }
+        },
+        "description": "ArtStation community discovery endpoint."
+      }
+    """.trimIndent()
+
+    val parseResult = MediaSourceConfig.parseJson(structuredJson)
+    assertTrue(parseResult.isSuccess)
+    val config = parseResult.getOrThrow()
+
+    assertEquals("ArtStation Search", config.name)
+    assertEquals("https://api.artstation.com/v2/community/explore/projects.json", config.apiUrl)
+    assertEquals("query", config.searchParam)
+    assertEquals("data", config.itemsPath)
+    assertEquals("cover.large_image_url", config.imageUrlField)
+    assertEquals("cover.small_image_url", config.thumbUrlField)
+    assertEquals(com.example.model.AuthType.QUERY_PARAMS, config.authType)
+    assertEquals(2, config.authQueryParams.size)
+    assertEquals("abc123secret", config.getEffectiveAuthQueryParams()["api_key"])
+    assertEquals("client999", config.getEffectiveAuthQueryParams()["client_id"])
+  }
+
+  // --- 16. Malformed JSON & Validation Failure Tests (Batch 6) ---
+
+  @Test
+  fun testMalformedJsonHandlingProducesErrorWithoutCrashing() {
+    val invalidJson = "{ this is not valid json content..."
+    val result = MediaSourceConfig.parseJson(invalidJson)
+    assertTrue(result.isFailure)
+    assertNotNull(result.exceptionOrNull()?.message)
+    assertTrue(result.exceptionOrNull()?.message?.contains("JSON") == true)
+  }
+
+  @Test
+  fun testMissingRequiredFieldsValidation() {
+    val missingUrlJson = """
+      {
+        "name": "No URL Source",
+        "searchParam": "q"
+      }
+    """.trimIndent()
+    val result = MediaSourceConfig.parseJson(missingUrlJson)
+    assertTrue(result.isFailure)
+    assertTrue(result.exceptionOrNull()?.message?.contains("API Endpoint URL is required") == true)
+
+    val missingNameJson = """
+      {
+        "apiUrl": "https://api.booru.org/posts"
+      }
+    """.trimIndent()
+    val missingNameConfig = MediaSourceConfig.fromJson(org.json.JSONObject(missingNameJson))
+    val errors = MediaSourceConfig.validateConfig(missingNameConfig.copy(name = ""))
+    assertTrue(errors.any { it.contains("Source Name is required") })
+  }
+
+  @Test
+  fun testUnknownOptionalFieldsSafelyIgnored() {
+    val jsonWithExtraFields = """
+      {
+        "name": "Custom Source",
+        "apiUrl": "https://example.com/api",
+        "unknownField123": "irrelevant_value",
+        "extraMetadata": {"nested": true},
+        "customFlag": 42
+      }
+    """.trimIndent()
+    val result = MediaSourceConfig.parseJson(jsonWithExtraFields)
+    assertTrue(result.isSuccess)
+    val config = result.getOrThrow()
+    assertEquals("Custom Source", config.name)
+    assertEquals("https://example.com/api", config.apiUrl)
+  }
+
+  // --- 17. Authentication Modes & Multi-Parameter Resolution (Batch 6) ---
+
+  @Test
+  fun testBearerTokenAuthenticationHeaderResolution() {
+    val config = MediaSourceConfig(
+      name = "Bearer Source",
+      apiUrl = "https://api.example.com/posts",
+      authType = com.example.model.AuthType.BEARER_TOKEN,
+      authHeaderValue = "secret_jwt_token_12345"
+    )
+
+    val headers = config.getEffectiveHeaders()
+    assertEquals(1, headers.size)
+    assertEquals("Bearer secret_jwt_token_12345", headers["Authorization"])
+  }
+
+  @Test
+  fun testCustomHeaderAuthenticationResolution() {
+    val config = MediaSourceConfig(
+      name = "Custom Header Source",
+      apiUrl = "https://api.example.com/posts",
+      authType = com.example.model.AuthType.CUSTOM_HEADER,
+      authHeaderName = "X-API-KEY",
+      authHeaderValue = "custom_secret_key_888"
+    )
+
+    val headers = config.getEffectiveHeaders()
+    assertEquals(1, headers.size)
+    assertEquals("custom_secret_key_888", headers["X-API-KEY"])
+  }
+
+  @Test
+  fun testGelbooruMultipleQueryParametersAuthentication() {
+    val gelbooru = MediaSourceConfig.TEMPLATE_GELBOORU.copy(
+      authQueryParams = listOf(
+        com.example.model.AuthParam("api_key", "my_gelbooru_api_key"),
+        com.example.model.AuthParam("user_id", "456789")
+      )
+    )
+
+    assertEquals(com.example.model.AuthType.QUERY_PARAMS, gelbooru.authType)
+    val queryParams = gelbooru.getEffectiveAuthQueryParams()
+    assertEquals(2, queryParams.size)
+    assertEquals("my_gelbooru_api_key", queryParams["api_key"])
+    assertEquals("456789", queryParams["user_id"])
+    assertEquals("https://gelbooru.com/index.php?page=dapi&s=post&q=index&json=1", gelbooru.apiUrl)
+  }
+
+  // --- 18. Security: Credential Sanitization on Export (Batch 6) ---
+
+  @Test
+  fun testExportedConfigurationSanitizesSecretsWithPlaceholders() {
+    val sensitiveConfig = MediaSourceConfig(
+      name = "Private Booru",
+      apiUrl = "https://private.booru.org/api",
+      authType = com.example.model.AuthType.QUERY_PARAMS,
+      authQueryParams = listOf(
+        com.example.model.AuthParam("api_key", "SUPER_SECRET_KEY_12345"),
+        com.example.model.AuthParam("user_id", "my_personal_user_id_999")
+      ),
+      authHeaderName = "X-Token",
+      authHeaderValue = "SECRET_HEADER_VALUE"
+    )
+
+    val exportedJsonString = sensitiveConfig.toExportJson(sanitizeSecrets = true)
+
+    // MUST NOT leak the actual secrets
+    assertFalse(exportedJsonString.contains("SUPER_SECRET_KEY_12345"))
+    assertFalse(exportedJsonString.contains("my_personal_user_id_999"))
+    assertFalse(exportedJsonString.contains("SECRET_HEADER_VALUE"))
+
+    // MUST contain standard placeholders
+    assertTrue(exportedJsonString.contains("YOUR_API_KEY"))
+    assertTrue(exportedJsonString.contains("YOUR_USER_ID"))
+  }
+
+  // --- 19. Expanded Templates Integrity (Batch 6) ---
+
+  @Test
+  fun testAllFiveSourceTemplatesPresentAndValid() {
+    val templates = MediaSourceConfig.SOURCE_TEMPLATES
+    assertEquals(5, templates.size)
+
+    val templateNames = templates.map { it.name }
+    assertTrue(templateNames.any { it.contains("Safebooru") })
+    assertTrue(templateNames.any { it.contains("Danbooru") })
+    assertTrue(templateNames.any { it.contains("Yande.re") })
+    assertTrue(templateNames.any { it.contains("Gelbooru") })
+    assertTrue(templateNames.any { it.contains("Moebooru") })
+  }
+
+  // --- 20. Source Diagnostics Logic Tests (Batch 6) ---
+
+  @Test
+  fun testSourceDiagnosticsParserAndStepEvaluation() {
+    val apiClient = MediaApiClient()
+    val customSource = MediaSourceConfig(
+      name = "Diagnostic Test Booru",
+      apiUrl = "https://custom.org/api",
+      itemsPath = "posts",
+      imageUrlField = "file_url",
+      thumbUrlField = "preview_url",
+      tagsField = "tags",
+      ratingField = "rating"
+    )
+
+    val samplePayload = """
+      {
+        "posts": [
+          {
+            "id": 1001,
+            "file_url": "https://cdn.custom.org/img/1001.png",
+            "preview_url": "https://cdn.custom.org/thumb/1001.jpg",
+            "tags": "scenery landscape sunset",
+            "rating": "s",
+            "file_ext": "png"
+          }
+        ]
+      }
+    """.trimIndent()
+
+    val parsed = apiClient.parseMediaItems(customSource, samplePayload)
+    assertEquals(1, parsed.size)
+    assertEquals("https://cdn.custom.org/img/1001.png", parsed[0].imageUrl)
+    assertEquals("https://cdn.custom.org/thumb/1001.jpg", parsed[0].thumbnailUrl)
+    assertEquals(3, parsed[0].tags.size)
+    assertEquals(MediaRating.SAFE, parsed[0].rating)
+  }
+
+  // --- 21. AI Prompt Template Content Validation (Batch 6) ---
+
+  @Test
+  fun testAiPromptTemplateContent() {
+    val prompt = MediaSourceConfig.AI_PROMPT_TEMPLATE
+    assertTrue(prompt.contains("Artflux"))
+    assertTrue(prompt.contains("imageUrlField"))
+    assertTrue(prompt.contains("thumbUrlField"))
+    assertTrue(prompt.contains("searchParam"))
+    assertTrue(prompt.contains("authentication"))
+    assertTrue(prompt.contains("YOUR_API_KEY"))
+  }
+
+  // --- 22. Light Theme Persistence & Application (Batch 6.1) ---
+
+  @Test
+  fun testLightThemeSelectionAndPersistence() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val prefsRepo = com.example.data.PreferencesRepository(context)
+
+    prefsRepo.setTheme(com.example.model.AppTheme.LIGHT)
+    assertEquals(com.example.model.AppTheme.LIGHT, prefsRepo.theme.value)
+
+    val reloadedRepo = com.example.data.PreferencesRepository(context)
+    assertEquals(com.example.model.AppTheme.LIGHT, reloadedRepo.theme.value)
+  }
+
+  // --- 23. Feed Thumbnail Quality Preview Resolution across Media Types (Batch 6.1) ---
+
+  @Test
+  fun testThumbnailQualityResolutionForImagesGifsAndVideos() {
+    val imageItem = MediaItem(
+      id = "501",
+      title = "Static Image",
+      imageUrl = "https://cdn.artflux.org/full.jpg",
+      thumbnailUrl = "https://cdn.artflux.org/thumb_360.jpg",
+      sampleUrl = "https://cdn.artflux.org/sample_720.jpg",
+      mediaType = MediaType.IMAGE
+    )
+
+    assertEquals("https://cdn.artflux.org/thumb_360.jpg", imageItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q360))
+    assertEquals("https://cdn.artflux.org/sample_720.jpg", imageItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+
+    val gifItem = MediaItem(
+      id = "502",
+      title = "GIF Preview",
+      imageUrl = "https://cdn.artflux.org/anim.gif",
+      thumbnailUrl = "https://cdn.artflux.org/gif_thumb_360.jpg",
+      sampleUrl = "https://cdn.artflux.org/gif_sample_720.jpg",
+      mediaType = MediaType.GIF
+    )
+
+    assertEquals("https://cdn.artflux.org/gif_thumb_360.jpg", gifItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q360))
+    assertEquals("https://cdn.artflux.org/gif_sample_720.jpg", gifItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+
+    val videoItem = MediaItem(
+      id = "503",
+      title = "Video Clip",
+      imageUrl = "https://cdn.artflux.org/movie.mp4",
+      thumbnailUrl = "https://cdn.artflux.org/video_thumb_360.jpg",
+      sampleUrl = "https://cdn.artflux.org/video_sample_720.jpg",
+      mediaType = MediaType.VIDEO
+    )
+
+    assertEquals("https://cdn.artflux.org/video_thumb_360.jpg", videoItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q360))
+    assertEquals("https://cdn.artflux.org/video_sample_720.jpg", videoItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+  }
 }
 
