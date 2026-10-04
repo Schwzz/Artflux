@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
@@ -36,10 +37,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,15 +62,16 @@ import com.example.ui.theme.TextSecondary
 @Composable
 fun SettingsScreen(
     sources: List<MediaSourceConfig>,
+    isDarkAmoled: Boolean,
+    onDarkAmoledChange: (Boolean) -> Unit,
     thumbnailQuality: ThumbnailQuality,
     onThumbnailQualityChange: (ThumbnailQuality) -> Unit,
+    loopVideo: Boolean,
+    onLoopVideoChange: (Boolean) -> Unit,
     onAddSourceClick: () -> Unit,
     onDeleteSource: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var darkThemeEnabled by remember { mutableStateOf(true) }
-    var autoPlayPreviews by remember { mutableStateOf(true) }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -148,14 +147,15 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section: Display & Theme
+        // Section: Display & Theme (Persisted)
         SettingsSectionHeader(title = "Display & Theme", icon = Icons.Default.Palette)
         SettingsCard {
             SettingsSwitchRow(
-                title = "Dark Amoled Theme",
-                subtitle = "Use immersive dark mode styling",
-                checked = darkThemeEnabled,
-                onCheckedChange = { darkThemeEnabled = it }
+                title = "Dark AMOLED Theme",
+                subtitle = "Pure deep black styling for OLED screens",
+                checked = isDarkAmoled,
+                onCheckedChange = onDarkAmoledChange,
+                testTag = "amoled_switch"
             )
         }
 
@@ -167,8 +167,9 @@ fun SettingsScreen(
             SettingsSwitchRow(
                 title = "Loop Video Playback",
                 subtitle = "Continuously loop videos in player",
-                checked = autoPlayPreviews,
-                onCheckedChange = { autoPlayPreviews = it }
+                checked = loopVideo,
+                onCheckedChange = onLoopVideoChange,
+                testTag = "loop_video_switch"
             )
         }
 
@@ -260,27 +261,49 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section: About
-        SettingsSectionHeader(title = "About Artflux", icon = Icons.Default.Info)
+        // Section: About (Simplified - "Artflux by Swartzz")
+        SettingsSectionHeader(title = "About", icon = Icons.Default.Info)
         SettingsCard {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Artflux Anime Discovery v1.0",
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "A clean, Pinterest-style anime and art discovery feed connecting to Safebooru, Danbooru, Yande.re, and custom booru endpoints with advanced filtering, swipeable fullscreen viewing, and thumbnail quality control.",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(NeonIndigo),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = TextPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column {
+                    Text(
+                        text = "Artflux by Swartzz",
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        fontFamily = FontFamily.SansSerif,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier.testTag("about_artflux_title")
+                    )
+                    Text(
+                        text = "Version 1.0",
+                        color = NeonIndigoLight,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 
@@ -328,7 +351,8 @@ fun SettingsSwitchRow(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    testTag: String = ""
 ) {
     Row(
         modifier = Modifier
@@ -357,7 +381,8 @@ fun SettingsSwitchRow(
             colors = SwitchDefaults.colors(
                 checkedThumbColor = TextPrimary,
                 checkedTrackColor = NeonIndigo
-            )
+            ),
+            modifier = if (testTag.isNotEmpty()) Modifier.testTag(testTag) else Modifier
         )
     }
 }

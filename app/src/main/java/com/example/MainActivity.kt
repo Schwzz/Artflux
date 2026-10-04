@@ -6,7 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.MediaBrowserScreen
 import com.example.ui.MediaBrowserViewModel
 import com.example.ui.theme.MediaBrowserTheme
@@ -18,7 +20,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MediaBrowserTheme {
+            val isDarkAmoled by viewModel.isDarkAmoledTheme.collectAsStateWithLifecycle()
+            MediaBrowserTheme(darkAmoled = isDarkAmoled) {
                 MediaBrowserScreen(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()

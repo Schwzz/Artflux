@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.MediaApiClient
+import com.example.data.PreferencesRepository
 import com.example.data.SourceRepository
 import com.example.model.FilterState
 import com.example.model.MediaItem
@@ -19,6 +20,7 @@ import com.example.model.Orientation
 import com.example.model.SortOption
 import com.example.model.ThumbnailQuality
 import com.example.util.QueryBuilder
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,9 +42,15 @@ data class FeedState(
 
 class MediaBrowserViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SourceRepository(application.applicationContext)
+    private val preferencesRepository = PreferencesRepository(application.applicationContext)
     private val apiClient = MediaApiClient()
 
     val sources: StateFlow<List<MediaSourceConfig>> = repository.sources
+
+    // --- Preferences (Persistent) ---
+    val isDarkAmoledTheme: StateFlow<Boolean> = preferencesRepository.isDarkAmoled
+    val thumbnailQuality: StateFlow<ThumbnailQuality> = preferencesRepository.thumbnailQuality
+    val loopVideoPlayback: StateFlow<Boolean> = preferencesRepository.loopVideo
 
     // --- Isolated Home Feed State ---
     private val _homeState = MutableStateFlow(
@@ -55,10 +63,6 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         FeedState(activeSource = MediaSourceConfig.BUILT_IN_SAFEBOORU)
     )
     val searchState: StateFlow<FeedState> = _searchState.asStateFlow()
-
-    // --- Thumbnail Quality Setting ---
-    private val _thumbnailQuality = MutableStateFlow(ThumbnailQuality.DEFAULT)
-    val thumbnailQuality: StateFlow<ThumbnailQuality> = _thumbnailQuality.asStateFlow()
 
     // --- Lightbox / Fullscreen Viewer State ---
     private val _lightboxItems = MutableStateFlow<List<MediaItem>>(emptyList())
@@ -100,6 +104,9 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private var homeJob: Job? = null
+    private var searchJob: Job? = null
+
     init {
         // Load initial Home discovery feed
         loadHomeData(isRefresh = true)
@@ -116,6 +123,22 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _isLoading.value = current.isLoading
         _isLoadingMore.value = current.isLoadingMore
         _errorMessage.value = current.errorMessage
+    }
+
+    // ==========================================
+    // PREFERENCES MANAGEMENT
+    // ==========================================
+
+    fun setDarkAmoledTheme(enabled: Boolean) {
+        preferencesRepository.setDarkAmoled(enabled)
+    }
+
+    fun setThumbnailQuality(quality: ThumbnailQuality) {
+        preferencesRepository.setThumbnailQuality(quality)
+    }
+
+    fun setLoopVideoPlayback(enabled: Boolean) {
+        preferencesRepository.setLoopVideo(enabled)
     }
 
     // ==========================================
@@ -184,9 +207,44 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun setHomeSourceAndFilter(source: MediaSourceConfig, filter: FilterState) {
+        val current = _homeState.value
+        val supportedTypes = source.getSupportedMediaTypes()
+        val sanitizedFilter = if (filter.mediaType !in supportedTypes) {
+            filter.copy(mediaType = MediaType.ALL)
+        } else {
+            filter
+        }
+
+        val sourceChanged = current.activeSource.id != source.id
+        val filterChanged = current.filterState != sanitizedFilter
+
+        if (!sourceChanged && !filterChanged) return
+
+        _homeState.value = current.copy(
+            activeSource = source,
+            filterState = sanitizedFilter,
+            rawItems = emptyList(),
+            mediaItems = emptyList(),
+            currentPage = 1,
+            hasReachedEnd = false
+        )
+        syncLegacyHomeState()
+        loadHomeData(isRefresh = true)
+    }
+
     fun refreshHome() {
-        if (_homeState.value.isRefreshing || _homeState.value.isLoading) return
-        _homeState.value = _homeState.value.copy(isRefreshing = true)
+        if (_homeState.value.isRefreshing) return
+        homeJob?.cancel()
+        _homeState.value = _homeState.value.copy(
+            isRefreshing = true,
+            isLoading = false,
+            isLoadingMore = false,
+            errorMessage = null,
+            currentPage = 1,
+            hasReachedEnd = false
+        )
+        syncLegacyHomeState()
         loadHomeData(isRefresh = true)
     }
 
@@ -200,19 +258,22 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private fun loadHomeData(isRefresh: Boolean) {
         val current = _homeState.value
         if (isRefresh) {
-            _homeState.value = current.copy(
-                currentPage = 1,
-                hasReachedEnd = false,
-                isLoading = !current.isRefreshing,
-                errorMessage = null
-            )
+            if (!current.isRefreshing) {
+                _homeState.value = current.copy(
+                    currentPage = 1,
+                    hasReachedEnd = false,
+                    isLoading = true,
+                    errorMessage = null
+                )
+            }
         } else {
-            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd) return
+            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd || current.isRefreshing) return
             _homeState.value = current.copy(isLoadingMore = true)
         }
         syncLegacyHomeState()
 
-        viewModelScope.launch {
+        homeJob?.cancel()
+        homeJob = viewModelScope.launch {
             val stateNow = _homeState.value
             val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
             val effectiveQuery = QueryBuilder.buildEffectiveQuery(
@@ -346,8 +407,16 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun refreshSearch() {
-        if (_searchState.value.isRefreshing || _searchState.value.isLoading) return
-        _searchState.value = _searchState.value.copy(isRefreshing = true)
+        if (_searchState.value.isRefreshing) return
+        searchJob?.cancel()
+        _searchState.value = _searchState.value.copy(
+            isRefreshing = true,
+            isLoading = false,
+            isLoadingMore = false,
+            errorMessage = null,
+            currentPage = 1,
+            hasReachedEnd = false
+        )
         loadSearchData(isRefresh = true)
     }
 
@@ -361,18 +430,21 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
     private fun loadSearchData(isRefresh: Boolean) {
         val current = _searchState.value
         if (isRefresh) {
-            _searchState.value = current.copy(
-                currentPage = 1,
-                hasReachedEnd = false,
-                isLoading = !current.isRefreshing,
-                errorMessage = null
-            )
+            if (!current.isRefreshing) {
+                _searchState.value = current.copy(
+                    currentPage = 1,
+                    hasReachedEnd = false,
+                    isLoading = true,
+                    errorMessage = null
+                )
+            }
         } else {
-            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd) return
+            if (current.isLoading || current.isLoadingMore || current.hasReachedEnd || current.isRefreshing) return
             _searchState.value = current.copy(isLoadingMore = true)
         }
 
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             val stateNow = _searchState.value
             val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
             val effectiveQuery = QueryBuilder.buildEffectiveQuery(
@@ -424,14 +496,6 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                 }
             }
         }
-    }
-
-    // ==========================================
-    // SETTINGS / THUMBNAIL QUALITY
-    // ==========================================
-
-    fun setThumbnailQuality(quality: ThumbnailQuality) {
-        _thumbnailQuality.value = quality
     }
 
     // ==========================================

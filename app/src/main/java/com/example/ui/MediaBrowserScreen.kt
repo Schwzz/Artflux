@@ -7,6 +7,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,17 +29,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,6 +53,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -56,22 +64,28 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,6 +93,9 @@ import com.example.model.FilterState
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaSourceConfig
+import com.example.model.MediaType
+import com.example.model.Orientation
+import com.example.model.SortOption
 import com.example.model.ThumbnailQuality
 import com.example.ui.components.AddSourceDialog
 import com.example.ui.components.LightboxViewer
@@ -95,12 +112,13 @@ import com.example.ui.theme.RoseBadge
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
+import kotlinx.coroutines.launch
 
 enum class MainTab {
     HOME, SEARCH, SETTINGS
 }
 
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MediaBrowserScreen(
     viewModel: MediaBrowserViewModel,
@@ -109,7 +127,9 @@ fun MediaBrowserScreen(
     val sources by viewModel.sources.collectAsStateWithLifecycle()
     val homeState by viewModel.homeState.collectAsStateWithLifecycle()
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
+    val isDarkAmoled by viewModel.isDarkAmoledTheme.collectAsStateWithLifecycle()
     val thumbnailQuality by viewModel.thumbnailQuality.collectAsStateWithLifecycle()
+    val loopVideo by viewModel.loopVideoPlayback.collectAsStateWithLifecycle()
 
     val lightboxIndex by viewModel.lightboxIndex.collectAsStateWithLifecycle()
     val lightboxItems by viewModel.lightboxItems.collectAsStateWithLifecycle()
@@ -118,6 +138,7 @@ fun MediaBrowserScreen(
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
 
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
+    var isHomeSettingsOpen by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val homeGridState = rememberLazyStaggeredGridState()
@@ -184,7 +205,7 @@ fun MediaBrowserScreen(
                         homeState = homeState,
                         thumbnailQuality = thumbnailQuality,
                         gridState = homeGridState,
-                        onOpenSourcePicker = { viewModel.openSourcePicker("home") },
+                        onOpenFeedSettings = { isHomeSettingsOpen = true },
                         onRefresh = { viewModel.refreshHome() },
                         onRetry = { viewModel.refreshHome() },
                         onResetFilters = {
@@ -213,7 +234,6 @@ fun MediaBrowserScreen(
                         onFilterChange = { viewModel.setSearchFilterState(it) },
                         onSelectSource = { viewModel.setSearchSource(it) },
                         onOpenPicker = { viewModel.openSourcePicker("search") },
-                        onAddSourceClick = { viewModel.openAddSourceDialog() },
                         onRefresh = { viewModel.refreshSearch() },
                         onRetry = { viewModel.refreshSearch() },
                         onResetFilters = {
@@ -234,8 +254,12 @@ fun MediaBrowserScreen(
                 MainTab.SETTINGS -> {
                     SettingsScreen(
                         sources = sources,
+                        isDarkAmoled = isDarkAmoled,
+                        onDarkAmoledChange = { viewModel.setDarkAmoledTheme(it) },
                         thumbnailQuality = thumbnailQuality,
                         onThumbnailQualityChange = { viewModel.setThumbnailQuality(it) },
+                        loopVideo = loopVideo,
+                        onLoopVideoChange = { viewModel.setLoopVideoPlayback(it) },
                         onAddSourceClick = { viewModel.openAddSourceDialog() },
                         onDeleteSource = { viewModel.deleteSource(it) }
                     )
@@ -244,7 +268,21 @@ fun MediaBrowserScreen(
         }
     }
 
-    // Source Picker Bottom Sheet
+    // Home Feed Settings / Filter Bottom Sheet
+    if (isHomeSettingsOpen) {
+        HomeFeedSettingsSheet(
+            sources = sources,
+            currentSource = homeState.activeSource,
+            currentFilter = homeState.filterState,
+            onApply = { newSource, newFilter ->
+                viewModel.setHomeSourceAndFilter(newSource, newFilter)
+                isHomeSettingsOpen = false
+            },
+            onDismiss = { isHomeSettingsOpen = false }
+        )
+    }
+
+    // Source Picker Bottom Sheet (Used by Search source switcher)
     if (isSourcePickerOpen) {
         val currentActiveSource = if (currentTab == MainTab.SEARCH) searchState.activeSource else homeState.activeSource
         SourcePickerBottomSheet(
@@ -358,7 +396,7 @@ fun HomeScreen(
     homeState: FeedState,
     thumbnailQuality: ThumbnailQuality,
     gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
-    onOpenSourcePicker: () -> Unit,
+    onOpenFeedSettings: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
     onResetFilters: () -> Unit,
@@ -369,7 +407,7 @@ fun HomeScreen(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Minimal Chrome Header
+        // Home Header: App Branding + Unified Feed Settings / Filter Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -402,22 +440,40 @@ fun HomeScreen(
                 )
             }
 
-            // Active Source Pill (taps to open source picker for Home)
+            // Unified Filter / Feed Settings Pill
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
                     .background(DarkSurfaceVariant)
                     .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
-                    .clickable(onClick = onOpenSourcePicker)
+                    .clickable(onClick = onOpenFeedSettings)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .testTag("home_source_pill")
+                    .testTag("home_feed_settings_button")
             ) {
-                Text(
-                    text = homeState.activeSource.name,
-                    color = NeonIndigoLight,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = "Feed settings",
+                        tint = NeonIndigoLight,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = homeState.activeSource.name,
+                        color = TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (homeState.filterState.activeFilterCount > 0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(NeonIndigo)
+                        )
+                    }
+                }
             }
         }
 
@@ -511,7 +567,6 @@ fun SearchScreen(
     onFilterChange: (FilterState) -> Unit,
     onSelectSource: (MediaSourceConfig) -> Unit,
     onOpenPicker: () -> Unit,
-    onAddSourceClick: () -> Unit,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
     onResetFilters: () -> Unit,
@@ -519,95 +574,169 @@ fun SearchScreen(
     onDownload: (MediaItem) -> Unit,
     onTagClick: (String) -> Unit
 ) {
-    val activeSource = searchState.activeSource
-    val filterState = searchState.filterState
-    val supportedTypes = remember(activeSource) { activeSource.getSupportedMediaTypes() }
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var isFilterSheetOpen by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Dedicated Search & Filter Control Header
+        // Search & Filter Header (Clean, Consolidated)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(DarkSurface)
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            Text(
-                text = "Search & Discovery",
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            // Top Row: Collapsible Search Input / Search Trigger
+            if (isSearchExpanded) {
+                OutlinedTextField(
+                    value = searchState.searchQuery,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .testTag("search_text_input"),
+                    placeholder = {
+                        Text(
+                            text = "Search tags, artists, concepts...",
+                            color = TextSecondary,
+                            fontSize = 14.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = NeonIndigoLight,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (searchState.searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        onQueryChange("")
+                                        onSearch()
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear search",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    isSearchExpanded = false
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Collapse search",
+                                    tint = TextTertiary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = DarkBackground,
+                        unfocusedContainerColor = DarkBackground,
+                        focusedBorderColor = NeonIndigo,
+                        unfocusedBorderColor = CardBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        focusManager.clearFocus()
+                        onSearch()
+                    })
+                )
 
-            // 1. Search input
-            OutlinedTextField(
-                value = searchState.searchQuery,
-                onValueChange = onQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("search_text_input"),
-                placeholder = {
-                    Text(
-                        text = "Search tags, artists, concepts...",
-                        color = TextSecondary,
-                        fontSize = 14.sp
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = NeonIndigoLight,
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (searchState.searchQuery.isNotEmpty()) {
+                LaunchedEffect(Unit) {
+                    focusRequester.requestFocus()
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkBackground)
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .clickable { isSearchExpanded = true }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .testTag("collapsed_search_trigger"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = NeonIndigoLight,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        if (searchState.searchQuery.isNotBlank()) {
+                            Text(
+                                text = searchState.searchQuery,
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            Text(
+                                text = "Search tags, artists, concepts...",
+                                color = TextSecondary,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    if (searchState.searchQuery.isNotBlank()) {
                         IconButton(
                             onClick = {
                                 onQueryChange("")
                                 onSearch()
                             },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = "Clear search",
                                 tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = DarkBackground,
-                    unfocusedContainerColor = DarkBackground,
-                    focusedBorderColor = NeonIndigo,
-                    unfocusedBorderColor = CardBorder,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    focusManager.clearFocus()
-                    onSearch()
-                })
-            )
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. Source Selector Row
+            // Second Row: Source Selector + Consolidated Filter Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Source Selector (with clear dropdown icon)
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -615,7 +744,7 @@ fun SearchScreen(
                         .background(DarkBackground)
                         .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
                         .clickable(onClick = onOpenPicker)
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                         .testTag("search_source_selector"),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -629,173 +758,52 @@ fun SearchScreen(
                             letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = activeSource.name,
+                            text = searchState.activeSource.name,
                             color = TextPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                     Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Change source",
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Select source",
                         tint = NeonIndigoLight,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
+                // Consolidated Filter Action
                 Button(
-                    onClick = onAddSourceClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = DarkBackground),
+                    onClick = { isFilterSheetOpen = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (searchState.filterState.activeFilterCount > 0) NeonIndigo else DarkBackground
+                    ),
                     shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.testTag("search_add_source_button")
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (searchState.filterState.activeFilterCount > 0) NeonIndigoLight else CardBorder
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.testTag("search_filter_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add source",
-                        tint = NeonIndigoLight,
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = "Open filters",
+                        tint = if (searchState.filterState.activeFilterCount > 0) TextPrimary else NeonIndigoLight,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("New", color = TextPrimary, fontSize = 12.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 3. Media Type Filter Chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Type:",
-                    color = TextTertiary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                supportedTypes.forEach { type ->
-                    val isSelected = filterState.mediaType == type
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkBackground)
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) NeonIndigoLight else CardBorder,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable {
-                                onFilterChange(filterState.copy(mediaType = type))
-                            }
-                            .padding(horizontal = 9.dp, vertical = 4.dp)
-                            .testTag("search_type_chip_${type.name}")
-                    ) {
-                        Text(
-                            text = type.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 4. Content Rating Filter Chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Rating:",
-                    color = TextTertiary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                MediaRating.values().filter { it != MediaRating.UNKNOWN }.forEach { rating ->
-                    val isSelected = filterState.rating == rating
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkBackground)
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) NeonIndigoLight else CardBorder,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .clickable {
-                                onFilterChange(filterState.copy(rating = rating))
-                            }
-                            .padding(horizontal = 9.dp, vertical = 4.dp)
-                            .testTag("search_rating_chip_${rating.name}")
-                    ) {
-                        Text(
-                            text = rating.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 5. Preset Tag Chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Tags:",
-                    color = TextTertiary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                PRESET_TAGS.forEach { tag ->
-                    val isSelected = searchState.searchQuery.equals(tag, ignoreCase = true)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) NeonIndigo else DarkBackground)
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) NeonIndigoLight else CardBorder,
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .clickable {
-                                onQueryChange(if (isSelected) "" else tag)
-                                onSearch()
-                            }
-                            .padding(horizontal = 9.dp, vertical = 4.dp)
-                            .testTag("tag_chip_$tag")
-                    ) {
-                        Text(
-                            text = "#$tag",
-                            color = if (isSelected) TextPrimary else TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (searchState.filterState.activeFilterCount > 0) "Filter (${searchState.filterState.activeFilterCount})" else "Filter",
+                        color = if (searchState.filterState.activeFilterCount > 0) TextPrimary else TextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
 
-        // 6. Search Results Feed with Pull-To-Refresh
+        // Search Results Feed with Pull-To-Refresh
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -871,6 +879,452 @@ fun SearchScreen(
             }
         }
     }
+
+    // Consolidated Search Filter Sheet
+    if (isFilterSheetOpen) {
+        SearchFilterSheet(
+            activeSource = searchState.activeSource,
+            filterState = searchState.filterState,
+            currentQuery = searchState.searchQuery,
+            onApply = { newFilter, newQuery ->
+                onFilterChange(newFilter)
+                if (newQuery != searchState.searchQuery) {
+                    onQueryChange(newQuery)
+                    onSearch()
+                }
+                isFilterSheetOpen = false
+            },
+            onDismiss = { isFilterSheetOpen = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun SearchFilterSheet(
+    activeSource: MediaSourceConfig,
+    filterState: FilterState,
+    currentQuery: String,
+    onApply: (FilterState, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val supportedTypes = remember(activeSource) { activeSource.getSupportedMediaTypes() }
+    var selectedType by remember {
+        mutableStateOf(if (filterState.mediaType in supportedTypes) filterState.mediaType else MediaType.ALL)
+    }
+    var selectedRating by remember { mutableStateOf(filterState.rating) }
+    var selectedSort by remember { mutableStateOf(filterState.sort) }
+    var selectedQuery by remember { mutableStateOf(currentQuery) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = DarkSurface,
+        tonalElevation = 8.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Search Filters",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                TextButton(
+                    onClick = {
+                        selectedType = MediaType.ALL
+                        selectedRating = MediaRating.ALL
+                        selectedSort = SortOption.LATEST
+                        selectedQuery = ""
+                    }
+                ) {
+                    Text("Reset All", color = NeonIndigoLight, fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Media Type Section
+            FilterSectionHeader(title = "Media Type")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                supportedTypes.forEach { type ->
+                    val isSelected = selectedType == type
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedType = type }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("filter_type_${type.name}")
+                    ) {
+                        Text(
+                            text = type.label,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Content Rating Section
+            FilterSectionHeader(title = "Content Rating")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MediaRating.values().filter { it != MediaRating.UNKNOWN }.forEach { rating ->
+                    val isSelected = selectedRating == rating
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedRating = rating }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("filter_rating_${rating.name}")
+                    ) {
+                        Text(
+                            text = rating.label,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Tag Presets
+            FilterSectionHeader(title = "Tag Presets")
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                PRESET_TAGS.forEach { tag ->
+                    val isSelected = selectedQuery.equals(tag, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(12.dp))
+                            .clickable {
+                                selectedQuery = if (isSelected) "" else tag
+                            }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .testTag("filter_tag_$tag")
+                    ) {
+                        Text(
+                            text = "#$tag",
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sort Order
+            FilterSectionHeader(title = "Sort Order")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SortOption.values().forEach { sort ->
+                    val isSelected = selectedSort == sort
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedSort = sort }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = sort.label,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Apply Button
+            Button(
+                onClick = {
+                    onApply(
+                        filterState.copy(
+                            mediaType = selectedType,
+                            rating = selectedRating,
+                            sort = selectedSort
+                        ),
+                        selectedQuery
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("apply_search_filters_button")
+            ) {
+                Text("Apply Filters", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeFeedSettingsSheet(
+    sources: List<MediaSourceConfig>,
+    currentSource: MediaSourceConfig,
+    currentFilter: FilterState,
+    onApply: (MediaSourceConfig, FilterState) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedSource by remember { mutableStateOf(currentSource) }
+    val supportedTypes = remember(selectedSource) { selectedSource.getSupportedMediaTypes() }
+    var selectedType by remember(selectedSource) {
+        mutableStateOf(if (currentFilter.mediaType in supportedTypes) currentFilter.mediaType else MediaType.ALL)
+    }
+    var selectedRating by remember { mutableStateOf(currentFilter.rating) }
+    var selectedSort by remember { mutableStateOf(currentFilter.sort) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = DarkSurface,
+        tonalElevation = 8.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Feed Settings (Home)",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                TextButton(
+                    onClick = {
+                        selectedSource = MediaSourceConfig.BUILT_IN_SAFEBOORU
+                        selectedType = MediaType.ALL
+                        selectedRating = MediaRating.ALL
+                        selectedSort = SortOption.LATEST
+                    }
+                ) {
+                    Text("Reset", color = NeonIndigoLight, fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Source Selector Section
+            FilterSectionHeader(title = "Source")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                sources.forEach { source ->
+                    val isSelected = selectedSource.id == source.id
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable {
+                                selectedSource = source
+                                val newSupported = source.getSupportedMediaTypes()
+                                if (selectedType !in newSupported) {
+                                    selectedType = MediaType.ALL
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("home_source_option_${source.id}")
+                    ) {
+                        Text(
+                            text = source.name,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Media Type Section
+            FilterSectionHeader(title = "Media Type")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                supportedTypes.forEach { type ->
+                    val isSelected = selectedType == type
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedType = type }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("home_type_option_${type.name}")
+                    ) {
+                        Text(
+                            text = type.label,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Rating Section
+            FilterSectionHeader(title = "Content Rating")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MediaRating.values().filter { it != MediaRating.UNKNOWN }.forEach { rating ->
+                    val isSelected = selectedRating == rating
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedRating = rating }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("home_rating_option_${rating.name}")
+                    ) {
+                        Text(
+                            text = rating.label,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sort Order
+            FilterSectionHeader(title = "Sort Order")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                SortOption.values().forEach { sort ->
+                    val isSelected = selectedSort == sort
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
+                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .clickable { selectedSort = sort }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = sort.label,
+                            color = if (isSelected) TextPrimary else TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Apply Button
+            Button(
+                onClick = {
+                    onApply(
+                        selectedSource,
+                        currentFilter.copy(
+                            mediaType = selectedType,
+                            rating = selectedRating,
+                            sort = selectedSort
+                        )
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("apply_home_settings_button")
+            ) {
+                Text("Apply Feed Settings", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+fun FilterSectionHeader(title: String) {
+    Text(
+        text = title,
+        color = NeonIndigoLight,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(bottom = 6.dp)
+    )
 }
 
 @Composable
@@ -880,7 +1334,9 @@ fun LoadingSkeletonGrid() {
         contentPadding = PaddingValues(12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalItemSpacing = 10.dp,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("loading_skeleton_grid")
     ) {
         items(6) { index ->
             val ratio = if (index % 2 == 0) 1.3f else 0.8f
@@ -914,6 +1370,7 @@ fun EmptyStateView(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -981,6 +1438,7 @@ fun ErrorStateView(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {

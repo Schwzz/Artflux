@@ -482,5 +482,86 @@ class ExampleRobolectricTest {
     assertEquals("png", parsed.fileExt)
     assertEquals("IllustratorX", parsed.author)
   }
+
+  // --- 10. Preference Persistence Tests (Batch 4) ---
+
+  @Test
+  fun testPreferencesPersistence() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val prefsRepo = com.example.data.PreferencesRepository(context)
+
+    // Default is true
+    assertTrue(prefsRepo.isDarkAmoled.value)
+
+    // Toggle to false (off)
+    prefsRepo.setDarkAmoled(false)
+    assertFalse(prefsRepo.isDarkAmoled.value)
+
+    // Simulate app restart by creating a new repository instance from context
+    val newPrefsRepo = com.example.data.PreferencesRepository(context)
+    assertFalse(newPrefsRepo.isDarkAmoled.value) // Persisted across instances!
+
+    // Toggle back to true
+    newPrefsRepo.setDarkAmoled(true)
+    assertTrue(newPrefsRepo.isDarkAmoled.value)
+
+    val thirdInstance = com.example.data.PreferencesRepository(context)
+    assertTrue(thirdInstance.isDarkAmoled.value)
+  }
+
+  // --- 11. Home Feed Settings / Source & Filter Update Tests (Batch 4) ---
+
+  @Test
+  fun testHomeFeedSettingsUpdatesHomeStateOnly() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = MediaBrowserViewModel(app)
+
+    // Set Search state to specific query and source
+    viewModel.setSearchSource(MediaSourceConfig.BUILT_IN_DANBOORU)
+    viewModel.setSearchQuery("cyberpunk")
+    viewModel.setSearchFilterState(FilterState(rating = MediaRating.SUGGESTIVE))
+
+    // Now update Home feed settings via unified control
+    val yandere = MediaSourceConfig.BUILT_IN_YANDERE
+    viewModel.setHomeSourceAndFilter(yandere, FilterState(rating = MediaRating.SAFE, mediaType = MediaType.IMAGE))
+
+    // Home state updated
+    assertEquals("builtin_yandere", viewModel.homeState.value.activeSource.id)
+    assertEquals(MediaRating.SAFE, viewModel.homeState.value.filterState.rating)
+    assertEquals(MediaType.IMAGE, viewModel.homeState.value.filterState.mediaType)
+
+    // Search state is 100% unaffected
+    assertEquals("builtin_danbooru", viewModel.searchState.value.activeSource.id)
+    assertEquals("cyberpunk", viewModel.searchState.value.searchQuery)
+    assertEquals(MediaRating.SUGGESTIVE, viewModel.searchState.value.filterState.rating)
+  }
+
+  // --- 12. Pull-To-Refresh Repeated Triggers & Pagination Reset (Batch 4) ---
+
+  @Test
+  fun testPullToRefreshResetsPaginationAndPreservesState() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = MediaBrowserViewModel(app)
+
+    val danbooru = MediaSourceConfig.BUILT_IN_DANBOORU
+    viewModel.setHomeSource(danbooru)
+    viewModel.setHomeFilterState(FilterState(rating = MediaRating.ADULT))
+
+    // Trigger refresh repeatedly
+    viewModel.refreshHome()
+    assertTrue(viewModel.homeState.value.isRefreshing)
+    assertEquals(1, viewModel.homeState.value.currentPage)
+    assertEquals("builtin_danbooru", viewModel.homeState.value.activeSource.id)
+    assertEquals(MediaRating.ADULT, viewModel.homeState.value.filterState.rating)
+
+    // Search state is independent
+    viewModel.setSearchSource(MediaSourceConfig.BUILT_IN_YANDERE)
+    viewModel.setSearchQuery("scenery")
+    viewModel.refreshSearch()
+    assertTrue(viewModel.searchState.value.isRefreshing)
+    assertEquals(1, viewModel.searchState.value.currentPage)
+    assertEquals("builtin_yandere", viewModel.searchState.value.activeSource.id)
+    assertEquals("scenery", viewModel.searchState.value.searchQuery)
+  }
 }
 

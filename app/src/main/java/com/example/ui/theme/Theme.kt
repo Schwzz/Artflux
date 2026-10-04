@@ -1,16 +1,34 @@
 package com.example.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
+private val DarkAmoledColorScheme = darkColorScheme(
+    primary = NeonIndigo,
+    onPrimary = TextPrimary,
+    primaryContainer = NeonIndigoDark,
+    onPrimaryContainer = NeonIndigoLight,
+    secondary = CyanAccent,
+    onSecondary = DarkBackground,
+    secondaryContainer = CyanAccentDark,
+    onSecondaryContainer = CyanAccentLight,
+    tertiary = MagentaAccent,
+    background = Color(0xFF000000),
+    onBackground = TextPrimary,
+    surface = Color(0xFF0B0F17),
+    onSurface = TextPrimary,
+    surfaceVariant = Color(0xFF131A29),
+    onSurfaceVariant = TextSecondary,
+    outline = CardBorder
+)
+
+private val DarkObsidianColorScheme = darkColorScheme(
     primary = NeonIndigo,
     onPrimary = TextPrimary,
     primaryContainer = NeonIndigoDark,
@@ -31,10 +49,10 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun MediaBrowserTheme(
-    darkTheme: Boolean = true, // Force modern dark look by default as requested
+    darkAmoled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
+    val colorScheme = if (darkAmoled) DarkAmoledColorScheme else DarkObsidianColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
