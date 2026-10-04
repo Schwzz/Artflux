@@ -533,8 +533,8 @@ class MediaApiClient {
         // Danbooru handling
         if (source.apiUrl.contains("danbooru")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("large_file_url") } }
-            val previewUrl = rawThumb.ifBlank { obj.optString("preview_file_url").ifBlank { fileUrl } }
             val sampleUrl = obj.optString("large_file_url").takeIf { it.isNotBlank() }
+            val previewUrl = rawThumb.ifBlank { obj.optString("preview_file_url").ifBlank { sampleUrl ?: fileUrl } }
             if (fileUrl.isNotBlank()) {
                 return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
             }
@@ -552,8 +552,8 @@ class MediaApiClient {
 
         // Generic URL cleanup
         val full = fixUrl(rawImage)
-        val thumb = fixUrl(rawThumb.ifBlank { rawImage })
         val sample = obj.optString("sample_url").ifBlank { obj.optString("large_file_url") }.takeIf { it.isNotBlank() }?.let { fixUrl(it) }
+        val thumb = fixUrl(rawThumb.ifBlank { sample ?: rawImage })
         return Triple(full, thumb, sample)
     }
 

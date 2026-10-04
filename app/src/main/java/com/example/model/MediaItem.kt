@@ -113,13 +113,41 @@ data class MediaItem(
     fun getThumbnailForQuality(quality: ThumbnailQuality): String {
         return when (quality) {
             ThumbnailQuality.Q360, ThumbnailQuality.Q480 -> {
-                thumbnailUrl.ifBlank { sampleUrl ?: imageUrl }
+                // Best at or below 480p: thumbnailUrl (~150-360p). If missing, sampleUrl (~720p).
+                // Never fall back to heavy original file or raw video for feed thumbnails if preview/sample exists.
+                if (thumbnailUrl.isNotBlank()) {
+                    thumbnailUrl
+                } else if (!sampleUrl.isNullOrBlank()) {
+                    sampleUrl!!
+                } else if (mediaType != MediaType.VIDEO) {
+                    imageUrl
+                } else {
+                    ""
+                }
             }
             ThumbnailQuality.Q720 -> {
-                sampleUrl?.ifBlank { null } ?: thumbnailUrl.ifBlank { imageUrl }
+                // Best around 720p: sampleUrl (~720-1080p). If missing, fall back to thumbnailUrl.
+                if (!sampleUrl.isNullOrBlank()) {
+                    sampleUrl!!
+                } else if (thumbnailUrl.isNotBlank()) {
+                    thumbnailUrl
+                } else if (mediaType != MediaType.VIDEO) {
+                    imageUrl
+                } else {
+                    ""
+                }
             }
             ThumbnailQuality.Q1080 -> {
-                sampleUrl?.ifBlank { null } ?: imageUrl.ifBlank { thumbnailUrl }
+                // Best at or around 1080p: sampleUrl. If missing, fall back to thumbnailUrl to avoid loading heavy original
+                if (!sampleUrl.isNullOrBlank()) {
+                    sampleUrl!!
+                } else if (thumbnailUrl.isNotBlank()) {
+                    thumbnailUrl
+                } else if (mediaType != MediaType.VIDEO) {
+                    imageUrl
+                } else {
+                    ""
+                }
             }
         }
     }
@@ -127,12 +155,12 @@ data class MediaItem(
     fun getThumbnailFallbackUrl(primaryQuality: ThumbnailQuality): String {
         val primary = getThumbnailForQuality(primaryQuality)
         return when {
-            primary == thumbnailUrl && !sampleUrl.isNullOrBlank() -> sampleUrl
-            primary == thumbnailUrl && imageUrl.isNotBlank() -> imageUrl
+            primary == thumbnailUrl && !sampleUrl.isNullOrBlank() -> sampleUrl!!
             primary == sampleUrl && thumbnailUrl.isNotBlank() -> thumbnailUrl
-            primary == imageUrl && !sampleUrl.isNullOrBlank() -> sampleUrl
-            primary == imageUrl && thumbnailUrl.isNotBlank() -> thumbnailUrl
-            else -> imageUrl
+            thumbnailUrl.isNotBlank() -> thumbnailUrl
+            !sampleUrl.isNullOrBlank() -> sampleUrl!!
+            mediaType != MediaType.VIDEO -> imageUrl
+            else -> primary
         }
     }
 

@@ -39,14 +39,6 @@ import androidx.compose.ui.unit.sp
 import com.example.model.DownloadQuality
 import com.example.model.MediaItem
 import com.example.model.MediaType
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
-import com.example.ui.theme.NeonIndigo
-import com.example.ui.theme.NeonIndigoLight
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 
 @Composable
 fun DownloadConfigDialog(
@@ -58,7 +50,7 @@ fun DownloadConfigDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         title = {
             Row(
@@ -69,13 +61,13 @@ fun DownloadConfigDialog(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(NeonIndigo),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Download,
                         contentDescription = null,
-                        tint = TextPrimary,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -84,13 +76,13 @@ fun DownloadConfigDialog(
                     Text(
                         text = "Download Media",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp
                     )
                     Text(
                         text = item.title,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 1
                     )
@@ -104,7 +96,7 @@ fun DownloadConfigDialog(
             ) {
                 Text(
                     text = "Select preferred download quality. The closest available variant from the source will be downloaded.",
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -114,12 +106,12 @@ fun DownloadConfigDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(DarkSurfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = "Note: ${item.mediaType.label} files are always downloaded in full animated/video format.",
-                            color = NeonIndigoLight,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -134,10 +126,10 @@ fun DownloadConfigDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(if (isSelected) NeonIndigo.copy(alpha = 0.2f) else DarkSurfaceVariant)
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                             .border(
                                 width = 1.dp,
-                                color = if (isSelected) NeonIndigoLight else CardBorder,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                 shape = RoundedCornerShape(10.dp)
                             )
                             .clickable { selectedQuality = quality }
@@ -149,13 +141,13 @@ fun DownloadConfigDialog(
                         Column {
                             Text(
                                 text = quality.label,
-                                color = if (isSelected) TextPrimary else TextSecondary,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 14.sp
                             )
                             Text(
                                 text = quality.description,
-                                color = TextTertiary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
                         }
@@ -165,7 +157,7 @@ fun DownloadConfigDialog(
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(NeonIndigoLight)
+                                    .background(MaterialTheme.colorScheme.primary)
                             )
                         }
                     }
@@ -175,11 +167,11 @@ fun DownloadConfigDialog(
         confirmButton = {
             Button(
                 onClick = { onConfirm(selectedQuality) },
-                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("confirm_download_button")
             ) {
-                Text("Download", color = TextPrimary, fontWeight = FontWeight.Bold)
+                Text("Download", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -187,7 +179,7 @@ fun DownloadConfigDialog(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("cancel_download_button")
             ) {
-                Text("Cancel", color = TextSecondary)
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )

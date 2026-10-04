@@ -354,6 +354,7 @@ fun MediaBrowserScreen(
             report = diagnosticReport,
             isLoading = isDiagnosing,
             onRunDiagnostics = { viewModel.runDiagnosticsForSource(sourceToTest) },
+            onEditSource = { source -> viewModel.openEditSourceDialog(source) },
             onDismiss = { viewModel.dismissSourceDiagnostics() }
         )
     }
@@ -779,7 +780,7 @@ fun SearchScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Second Row: Source Selector + Consolidated Filter Button
+            // Second Row: Source Selector + Consolidated Filter Button (Matching Height & Vertically Aligned)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -789,16 +790,16 @@ fun SearchScreen(
                 Row(
                     modifier = Modifier
                         .weight(1f)
+                        .height(44.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
                         .clickable(onClick = onOpenPicker)
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .testTag("search_source_selector"),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(verticalArrangement = Arrangement.Center) {
                         Text(
                             text = "SOURCE",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -816,7 +817,7 @@ fun SearchScreen(
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = "Select source",
-                        tint = NeonIndigoLight,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -825,26 +826,28 @@ fun SearchScreen(
                 Button(
                     onClick = { isFilterSheetOpen = true },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (searchState.filterState.activeFilterCount > 0) NeonIndigo else MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                     ),
                     shape = RoundedCornerShape(10.dp),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (searchState.filterState.activeFilterCount > 0) NeonIndigoLight else MaterialTheme.colorScheme.outline
+                        if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                     ),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                    modifier = Modifier.testTag("search_filter_button")
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    modifier = Modifier
+                        .height(44.dp)
+                        .testTag("search_filter_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.FilterList,
                         contentDescription = "Open filters",
-                        tint = if (searchState.filterState.activeFilterCount > 0) Color.White else NeonIndigoLight,
+                        tint = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (searchState.filterState.activeFilterCount > 0) "Filter (${searchState.filterState.activeFilterCount})" else "Filter",
-                        color = if (searchState.filterState.activeFilterCount > 0) Color.White else MaterialTheme.colorScheme.onSurface,
+                        color = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -969,7 +972,7 @@ fun SearchFilterSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
     ) {
         Column(
@@ -986,7 +989,7 @@ fun SearchFilterSheet(
                 Text(
                     text = "Search Filters",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -998,7 +1001,7 @@ fun SearchFilterSheet(
                         selectedQuery = ""
                     }
                 ) {
-                    Text("Reset All", color = NeonIndigoLight, fontSize = 13.sp)
+                    Text("Reset All", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
                 }
             }
 
@@ -1017,15 +1020,15 @@ fun SearchFilterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable { selectedType = type }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                             .testTag("filter_type_${type.name}")
                     ) {
                         Text(
                             text = type.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1048,15 +1051,15 @@ fun SearchFilterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable { selectedRating = rating }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                             .testTag("filter_rating_${rating.name}")
                     ) {
                         Text(
                             text = rating.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1078,8 +1081,8 @@ fun SearchFilterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(12.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                             .clickable {
                                 selectedQuery = if (isSelected) "" else tag
                             }
@@ -1088,7 +1091,7 @@ fun SearchFilterSheet(
                     ) {
                         Text(
                             text = "#$tag",
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -1111,14 +1114,14 @@ fun SearchFilterSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable { selectedSort = sort }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = sort.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1140,14 +1143,14 @@ fun SearchFilterSheet(
                         selectedQuery
                     )
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
                     .testTag("apply_search_filters_button")
             ) {
-                Text("Apply Filters", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Apply Filters", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1175,7 +1178,7 @@ fun HomeFeedSettingsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp
     ) {
         Column(
@@ -1192,7 +1195,7 @@ fun HomeFeedSettingsSheet(
                 Text(
                     text = "Feed Settings (Home)",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -1204,7 +1207,7 @@ fun HomeFeedSettingsSheet(
                         selectedSort = SortOption.LATEST
                     }
                 ) {
-                    Text("Reset", color = NeonIndigoLight, fontSize = 13.sp)
+                    Text("Reset", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
                 }
             }
 
@@ -1223,8 +1226,8 @@ fun HomeFeedSettingsSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable {
                                 selectedSource = source
                                 val newSupported = source.getSupportedMediaTypes()
@@ -1237,7 +1240,7 @@ fun HomeFeedSettingsSheet(
                     ) {
                         Text(
                             text = source.name,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1260,15 +1263,15 @@ fun HomeFeedSettingsSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable { selectedType = type }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                             .testTag("home_type_option_${type.name}")
                     ) {
                         Text(
                             text = type.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1291,15 +1294,15 @@ fun HomeFeedSettingsSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable { selectedRating = rating }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                             .testTag("home_rating_option_${rating.name}")
                     ) {
                         Text(
                             text = rating.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1322,14 +1325,14 @@ fun HomeFeedSettingsSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                            .border(1.dp, if (isSelected) NeonIndigoLight else CardBorder, RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                             .clickable { selectedSort = sort }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
                             text = sort.label,
-                            color = if (isSelected) TextPrimary else TextSecondary,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -1351,14 +1354,14 @@ fun HomeFeedSettingsSheet(
                         )
                     )
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
                     .testTag("apply_home_settings_button")
             ) {
-                Text("Apply Feed Settings", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Apply Feed Settings", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1370,7 +1373,7 @@ fun HomeFeedSettingsSheet(
 fun FilterSectionHeader(title: String) {
     Text(
         text = title,
-        color = NeonIndigoLight,
+        color = MaterialTheme.colorScheme.primary,
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(bottom = 6.dp)
@@ -1395,7 +1398,7 @@ fun LoadingSkeletonGrid() {
                     .fillMaxWidth()
                     .aspectRatio(ratio)
                     .clip(RoundedCornerShape(14.dp)),
-                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -1403,7 +1406,7 @@ fun LoadingSkeletonGrid() {
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(28.dp),
-                        color = NeonIndigoLight,
+                        color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 2.dp
                     )
                 }

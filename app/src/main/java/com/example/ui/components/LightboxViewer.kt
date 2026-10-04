@@ -8,7 +8,11 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -248,20 +252,58 @@ fun LightboxViewer(
                     modifier = Modifier
                         .fillMaxSize()
                         .pointerInput(pageItem.id) {
-                            detectTransformGestures(panZoomLock = true) { _, pan, zoom, _ ->
-                                val newScale = (scale * zoom).coerceIn(1f, 5f)
-                                if (zoom != 1f || scale > 1.02f) {
-                                    scale = newScale
-                                    if (scale > 1f) {
-                                        val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                                        val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                                        offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
-                                        offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
-                                    } else {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    if (scale > 1.05f) {
+                                        scale = 1f
                                         offsetX = 0f
                                         offsetY = 0f
+                                    } else {
+                                        scale = 2.5f
                                     }
-                                } else {
+                                }
+                            )
+                        }
+                        .pointerInput(pageItem.id) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val activeChanges = event.changes.filter { it.pressed }
+
+                                    if (activeChanges.size >= 2) {
+                                        // Two-finger pinch to zoom & pan
+                                        val zoom = event.calculateZoom()
+                                        val pan = event.calculatePan()
+                                        val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                        scale = newScale
+
+                                        if (scale > 1.05f) {
+                                            val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                            val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                            offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
+                                            offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
+                                        } else {
+                                            scale = 1f
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                        }
+                                        event.changes.forEach { it.consume() }
+                                    } else if (scale > 1.05f) {
+                                        // Zoomed in: single finger pan
+                                        val pan = event.calculatePan()
+                                        val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                        val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                        offsetX = (offsetX + pan.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                        offsetY = (offsetY + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                        event.changes.forEach { it.consume() }
+                                    } else {
+                                        // At 1x scale with 1 finger: DO NOT consume!
+                                        // This allows HorizontalPager to handle horizontal swipe navigation seamlessly across images, GIFs, and videos!
+                                    }
+                                } while (event.changes.any { it.pressed })
+
+                                if (scale <= 1.05f) {
                                     scale = 1f
                                     offsetX = 0f
                                     offsetY = 0f

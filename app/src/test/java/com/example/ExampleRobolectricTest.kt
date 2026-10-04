@@ -437,10 +437,10 @@ class ExampleRobolectricTest {
     // 1080p should prefer sampleUrl or imageUrl
     assertEquals("https://cdn.booru.org/sample/12345.jpg", item.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
 
-    // Fallback when sampleUrl is null
+    // Fallback when sampleUrl is null (Batch 7: avoid falling back to original heavy file)
     val itemNoSample = item.copy(sampleUrl = null)
     assertEquals("https://cdn.booru.org/preview/12345.jpg", itemNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
-    assertEquals("https://cdn.booru.org/original/12345.jpg", itemNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
+    assertEquals("https://cdn.booru.org/preview/12345.jpg", itemNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
   }
 
   // --- 9. Media Details & Metadata Parsing Tests ---
@@ -940,6 +940,90 @@ class ExampleRobolectricTest {
 
     assertEquals("https://cdn.artflux.org/video_thumb_360.jpg", videoItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q360))
     assertEquals("https://cdn.artflux.org/video_sample_720.jpg", videoItem.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+  }
+
+  // --- 24. Thumbnail Fallback Edge Cases (Batch 7) ---
+
+  @Test
+  fun testThumbnailFallbackDoesNotFallBackToHeavyOriginalOrVideo() {
+    // 1. Static image with only thumbnailUrl: Q1080 falls back to thumbnailUrl, not imageUrl
+    val heavyImage = MediaItem(
+      id = "601",
+      title = "Large Raw File",
+      imageUrl = "https://cdn.artflux.org/original_raw_50mb.png",
+      thumbnailUrl = "https://cdn.artflux.org/preview_150.jpg",
+      sampleUrl = null,
+      mediaType = MediaType.IMAGE
+    )
+    assertEquals("https://cdn.artflux.org/preview_150.jpg", heavyImage.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
+    assertEquals("https://cdn.artflux.org/preview_150.jpg", heavyImage.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q720))
+
+    // 2. Video with only thumbnailUrl: must NOT return the mp4 video file
+    val videoNoSample = MediaItem(
+      id = "602",
+      title = "MP4 Video",
+      imageUrl = "https://cdn.artflux.org/full_video.mp4",
+      thumbnailUrl = "https://cdn.artflux.org/video_preview.jpg",
+      sampleUrl = null,
+      mediaType = MediaType.VIDEO
+    )
+    assertEquals("https://cdn.artflux.org/video_preview.jpg", videoNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080))
+    assertFalse(videoNoSample.getThumbnailForQuality(com.example.model.ThumbnailQuality.Q1080).endsWith(".mp4"))
+  }
+
+  // --- 25. Media-Type-Aware Download Toast Messages (Batch 7) ---
+
+  @Test
+  fun testDownloadToastMessageMediaAwareFormat() {
+    val imageItem = MediaItem(id = "701", title = "Sunset Title", imageUrl = "https://cdn.org/1.jpg", thumbnailUrl = "https://cdn.org/t1.jpg", mediaType = MediaType.IMAGE)
+    val gifItem = MediaItem(id = "702", title = "Anime Dance", imageUrl = "https://cdn.org/2.gif", thumbnailUrl = "https://cdn.org/t2.jpg", mediaType = MediaType.GIF)
+    val videoItem = MediaItem(id = "703", title = "AMV Clip", imageUrl = "https://cdn.org/3.mp4", thumbnailUrl = "https://cdn.org/t3.jpg", mediaType = MediaType.VIDEO)
+
+    fun formatDownloadMessage(item: MediaItem, quality: com.example.model.DownloadQuality): String {
+      val mediaLabel = when (item.mediaType) {
+        MediaType.GIF -> "GIF"
+        MediaType.VIDEO -> "video"
+        else -> "image"
+      }
+      val qualityLabel = if (quality == com.example.model.DownloadQuality.ORIGINAL) "1080p" else quality.label
+      return "Downloading $mediaLabel ($qualityLabel)..."
+    }
+
+    assertEquals("Downloading image (1080p)...", formatDownloadMessage(imageItem, com.example.model.DownloadQuality.Q1080))
+    assertEquals("Downloading GIF (1080p)...", formatDownloadMessage(gifItem, com.example.model.DownloadQuality.Q1080))
+    assertEquals("Downloading video (1080p)...", formatDownloadMessage(videoItem, com.example.model.DownloadQuality.Q1080))
+
+    // Ensure no titles or metadata are included
+    val msg = formatDownloadMessage(imageItem, com.example.model.DownloadQuality.Q1080)
+    assertFalse(msg.contains("Sunset Title"))
+    assertFalse(msg.contains("701"))
+  }
+
+  // --- 26. Diagnostics Edit Action Across Custom and Built-In Sources (Batch 7) ---
+
+  @Test
+  fun testDiagnosticsEditActionAcrossSourceTypes() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = MediaBrowserViewModel(context)
+
+    // 1. Edit a custom source
+    val customSource = MediaSourceConfig(id = "my_custom_source", name = "My Source", apiUrl = "https://custom.org/api", isBuiltIn = false)
+    viewModel.openEditSourceDialog(customSource)
+    assertTrue(viewModel.isAddSourceOpen.value)
+    assertEquals("my_custom_source", viewModel.editingSourceConfig.value?.id)
+    assertEquals("My Source", viewModel.editingSourceConfig.value?.name)
+
+    viewModel.closeAddSourceDialog()
+    assertFalse(viewModel.isAddSourceOpen.value)
+
+    // 2. Edit a built-in source (Safebooru) -> Clones with customization title
+    val builtIn = MediaSourceConfig.BUILT_IN_SAFEBOORU
+    viewModel.openEditSourceDialog(builtIn)
+    assertTrue(viewModel.isAddSourceOpen.value)
+    val editing = viewModel.editingSourceConfig.value
+    assertNotNull(editing)
+    assertFalse(editing!!.isBuiltIn)
+    assertTrue(editing.name.contains("Safebooru (Custom)"))
   }
 }
 

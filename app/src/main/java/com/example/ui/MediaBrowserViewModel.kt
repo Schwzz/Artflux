@@ -600,6 +600,20 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _isAddSourceOpen.value = true
     }
 
+    fun openEditSourceDialog(source: MediaSourceConfig) {
+        dismissSourceDiagnostics()
+        val configToEdit = if (source.isBuiltIn) {
+            source.copy(
+                id = "custom_${source.id}_${System.currentTimeMillis() % 10000}",
+                name = "${source.name} (Custom)",
+                isBuiltIn = false
+            )
+        } else {
+            source
+        }
+        openAddSourceDialog(configToEdit)
+    }
+
     fun closeAddSourceDialog() {
         _isAddSourceOpen.value = false
         _editingSourceConfig.value = null
@@ -720,7 +734,13 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
             }
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
             downloadManager?.enqueue(request)
-            _snackbarMessage.value = "Downloading '${item.title}' (${quality.label})"
+            val mediaLabel = when (item.mediaType) {
+                MediaType.GIF -> "GIF"
+                MediaType.VIDEO -> "video"
+                else -> "image"
+            }
+            val qualityLabel = if (quality == DownloadQuality.ORIGINAL) "1080p" else quality.label
+            _snackbarMessage.value = "Downloading $mediaLabel ($qualityLabel)..."
         } catch (e: Exception) {
             _snackbarMessage.value = "Download error: ${e.message}"
         }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
@@ -62,11 +64,12 @@ fun SourceDiagnosticsDialog(
     report: SourceDiagnosticReport?,
     isLoading: Boolean,
     onRunDiagnostics: () -> Unit,
+    onEditSource: ((MediaSourceConfig) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         title = {
             Row(
@@ -79,13 +82,13 @@ fun SourceDiagnosticsDialog(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(NeonIndigo),
+                            .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Speed,
                             contentDescription = null,
-                            tint = TextPrimary,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -94,13 +97,13 @@ fun SourceDiagnosticsDialog(
                         Text(
                             text = "Source Diagnostics",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp
                         )
                         Text(
                             text = source.name,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             maxLines = 1
                         )
@@ -114,7 +117,7 @@ fun SourceDiagnosticsDialog(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = TextSecondary,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -139,14 +142,14 @@ fun SourceDiagnosticsDialog(
                             verticalArrangement = Arrangement.Center
                         ) {
                             CircularProgressIndicator(
-                                color = NeonIndigoLight,
+                                color = MaterialTheme.colorScheme.primary,
                                 strokeWidth = 3.dp,
                                 modifier = Modifier.size(36.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "Testing API connection & response mapping...",
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp
                             )
                         }
@@ -178,13 +181,13 @@ fun SourceDiagnosticsDialog(
                             Column {
                                 Text(
                                     text = if (isAllPassed) "Source Test Passed" else "Diagnostics Warning / Error",
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp
                                 )
                                 Text(
                                     text = report.summary,
-                                    color = TextSecondary,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp
                                 )
                             }
@@ -198,7 +201,7 @@ fun SourceDiagnosticsDialog(
                     ) {
                         Text(
                             text = "DIAGNOSTIC CHECKS",
-                            color = NeonIndigoLight,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -215,7 +218,7 @@ fun SourceDiagnosticsDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(DarkSurfaceVariant)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -229,13 +232,13 @@ fun SourceDiagnosticsDialog(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = step.title,
-                                        color = TextPrimary,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 12.sp
                                     )
                                     Text(
                                         text = step.detail,
-                                        color = TextSecondary,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 10.sp
                                     )
                                 }
@@ -249,7 +252,7 @@ fun SourceDiagnosticsDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(DarkSurfaceVariant)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(10.dp)
                         ) {
                             Column {
@@ -262,7 +265,7 @@ fun SourceDiagnosticsDialog(
                                 )
                                 Text(
                                     text = report.sampleTitle,
-                                    color = TextPrimary,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1
@@ -277,7 +280,7 @@ fun SourceDiagnosticsDialog(
             Button(
                 onClick = onRunDiagnostics,
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.testTag("rerun_diagnostics_button")
             ) {
@@ -285,18 +288,45 @@ fun SourceDiagnosticsDialog(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = TextPrimary
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Test Again", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("Test Again", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         },
         dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(8.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Close", color = TextSecondary, fontSize = 12.sp)
+                if (onEditSource != null) {
+                    OutlinedButton(
+                        onClick = { onEditSource(source) },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.testTag("diagnostics_edit_source_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit source",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (source.isBuiltIn) "Customize" else "Edit",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                OutlinedButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                }
             }
         }
     )

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
@@ -35,6 +38,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +46,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +96,8 @@ fun SettingsScreen(
     onDeleteSource: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var isSourceConfigsExpanded by remember { mutableStateOf(true) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -104,7 +114,7 @@ fun SettingsScreen(
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
-        // 1. Section: Appearance (Theme & Blur NSFW)
+        // 1. Section: Appearance (Theme only)
         SettingsSectionHeader(title = "Appearance", icon = Icons.Default.Palette)
         SettingsCard {
             Column(
@@ -117,13 +127,13 @@ fun SettingsScreen(
                 Column {
                     Text(
                         text = "Theme",
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp
                     )
                     Text(
                         text = "Choose light or dark interface styling",
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
                     )
@@ -138,10 +148,10 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isLight) NeonIndigo else DarkSurfaceVariant)
+                                .background(if (isLight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                 .border(
                                     width = 1.dp,
-                                    color = if (isLight) NeonIndigoLight else CardBorder,
+                                    color = if (isLight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     shape = RoundedCornerShape(10.dp)
                                 )
                                 .clickable { onThemeChange(AppTheme.LIGHT) }
@@ -153,13 +163,13 @@ fun SettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.LightMode,
                                     contentDescription = null,
-                                    tint = if (isLight) TextPrimary else TextSecondary,
+                                    tint = if (isLight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Light",
-                                    color = if (isLight) TextPrimary else TextSecondary,
+                                    color = if (isLight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = if (isLight) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp
                                 )
@@ -172,10 +182,10 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isDark) NeonIndigo else DarkSurfaceVariant)
+                                .background(if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                 .border(
                                     width = 1.dp,
-                                    color = if (isDark) NeonIndigoLight else CardBorder,
+                                    color = if (isDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     shape = RoundedCornerShape(10.dp)
                                 )
                                 .clickable { onThemeChange(AppTheme.DARK) }
@@ -187,13 +197,13 @@ fun SettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.DarkMode,
                                     contentDescription = null,
-                                    tint = if (isDark) TextPrimary else TextSecondary,
+                                    tint = if (isDark) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Dark",
-                                    color = if (isDark) TextPrimary else TextSecondary,
+                                    color = if (isDark) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = if (isDark) FontWeight.Bold else FontWeight.Medium,
                                     fontSize = 13.sp
                                 )
@@ -201,8 +211,73 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+        }
 
-                // Blur NSFW Content Switch
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 2. Section: Display (Thumbnail Quality & Blur NSFW Content)
+        SettingsSectionHeader(title = "Display", icon = Icons.Default.HighQuality)
+        SettingsCard {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Thumbnail Quality
+                Column {
+                    Text(
+                        text = "Thumbnail Quality",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "Preferred maximum resolution for gallery cards. Fullscreen view always uses original quality.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                    )
+
+                    // Quality Selector Chips (360p, 480p, 720p, 1080p)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ThumbnailQuality.values().forEach { qualityOption ->
+                            val isSelected = qualityOption == thumbnailQuality
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable { onThumbnailQualityChange(qualityOption) }
+                                    .padding(vertical = 10.dp)
+                                    .testTag("quality_option_${qualityOption.resolution}"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = qualityOption.label,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                // Blur NSFW Content Switch (Moved to Display)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -211,14 +286,14 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Blur NSFW Content",
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Blur adult content in feeds until opened",
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp
                         )
                     }
@@ -226,70 +301,13 @@ fun SettingsScreen(
                         checked = blurNsfw,
                         onCheckedChange = onBlurNsfwChange,
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = TextPrimary,
-                            checkedTrackColor = NeonIndigo
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                         ),
                         modifier = Modifier.testTag("blur_nsfw_switch")
                     )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 2. Section: Display (Thumbnail Quality)
-        SettingsSectionHeader(title = "Display", icon = Icons.Default.HighQuality)
-        SettingsCard {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Thumbnail Quality",
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = "Preferred maximum resolution for gallery cards. Fullscreen view always uses original quality.",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
-                )
-
-                // Quality Selector Chips (360p, 480p, 720p, 1080p)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ThumbnailQuality.values().forEach { qualityOption ->
-                        val isSelected = qualityOption == thumbnailQuality
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) NeonIndigo else DarkSurfaceVariant)
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSelected) NeonIndigoLight else CardBorder,
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                                .clickable { onThumbnailQualityChange(qualityOption) }
-                                .padding(vertical = 10.dp)
-                                .testTag("quality_option_${qualityOption.resolution}"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = qualityOption.label,
-                                    color = if (isSelected) TextPrimary else TextSecondary,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -310,18 +328,37 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 4. Section: Source Configurations
+        // 4. Section: Source Configurations (Collapsible / Expandable)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            SettingsSectionHeader(title = "Source Configurations", icon = Icons.Default.Storage)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { isSourceConfigsExpanded = !isSourceConfigsExpanded }
+                    .padding(vertical = 4.dp, horizontal = 4.dp)
+            ) {
+                SettingsSectionHeader(
+                    title = "Source Configurations (${sources.size})",
+                    icon = Icons.Default.Storage
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = if (isSourceConfigsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (isSourceConfigsExpanded) "Collapse source configurations" else "Expand source configurations",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
             Button(
                 onClick = onAddSourceClick,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.testTag("settings_add_source_button")
             ) {
@@ -329,167 +366,170 @@ fun SettingsScreen(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = TextPrimary
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Add Source", color = TextPrimary, fontSize = 12.sp)
+                Text("Add Source", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp)
             }
         }
 
-        SettingsCard {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                sources.forEach { source ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(DarkSurfaceVariant)
-                            .padding(12.dp)
-                            .testTag("settings_source_card_${source.id}")
-                    ) {
-                        // Title & Type Badge
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = source.name,
-                                    color = TextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    text = source.apiUrl,
-                                    color = TextSecondary,
-                                    fontSize = 11.sp,
-                                    maxLines = 1
-                                )
-                            }
-
-                            if (source.isBuiltIn) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(NeonIndigo.copy(alpha = 0.25f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "Built-in",
-                                        color = NeonIndigoLight,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(CyanAccent.copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "Custom",
-                                        color = CyanAccent,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        // Feature Pills
-                        Row(
+        AnimatedVisibility(visible = isSourceConfigsExpanded) {
+            SettingsCard {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    sources.forEach { source ->
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+                                .padding(12.dp)
+                                .testTag("settings_source_card_${source.id}")
                         ) {
-                            if (source.supportsGifs) {
-                                SmallFeaturePill("GIF", MagentaAccent)
-                            }
-                            if (source.supportsVideos) {
-                                SmallFeaturePill("VIDEO", CyanAccent)
-                            }
-                            if (source.hasAuthentication) {
-                                SmallFeaturePill("AUTH", EmeraldSafe)
-                            }
-                            if (source.safeRatingTag.isNotBlank() || source.adultRatingTag.isNotBlank()) {
-                                SmallFeaturePill("RATINGS", NeonIndigoLight)
-                            }
-                        }
-
-                        // Action Buttons Bar (Test, Export, Edit, Delete)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Test Diagnostics Button
-                            IconButton(
-                                onClick = { onTestSource(source) },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .testTag("test_source_action_${source.id}")
+                            // Title & Type Badge
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Speed,
-                                    contentDescription = "Test source diagnostics",
-                                    tint = NeonIndigoLight,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = source.name,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = source.apiUrl,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp,
+                                        maxLines = 1
+                                    )
+                                }
+
+                                if (source.isBuiltIn) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Built-in",
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(CyanAccent.copy(alpha = 0.2f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Custom",
+                                            color = CyanAccent,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
 
-                            // Export Config Button
-                            IconButton(
-                                onClick = { onExportSource(source) },
+                            // Feature Pills
+                            Row(
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .testTag("export_source_action_${source.id}")
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Export sanitized configuration",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                if (source.supportsGifs) {
+                                    SmallFeaturePill("GIF", MagentaAccent)
+                                }
+                                if (source.supportsVideos) {
+                                    SmallFeaturePill("VIDEO", CyanAccent)
+                                }
+                                if (source.hasAuthentication) {
+                                    SmallFeaturePill("AUTH", EmeraldSafe)
+                                }
+                                if (source.safeRatingTag.isNotBlank() || source.adultRatingTag.isNotBlank()) {
+                                    SmallFeaturePill("RATINGS", MaterialTheme.colorScheme.primary)
+                                }
                             }
 
-                            if (!source.isBuiltIn) {
-                                // Edit Custom Source Button
+                            // Action Buttons Bar (Test, Export, Edit, Delete)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Test Diagnostics Button
                                 IconButton(
-                                    onClick = { onEditSource(source) },
+                                    onClick = { onTestSource(source) },
                                     modifier = Modifier
                                         .size(32.dp)
-                                        .testTag("edit_source_action_${source.id}")
+                                        .testTag("test_source_action_${source.id}")
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Edit source",
-                                        tint = CyanAccent,
+                                        imageVector = Icons.Default.Speed,
+                                        contentDescription = "Test source diagnostics",
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
 
-                                // Delete Custom Source Button
+                                // Export Config Button
                                 IconButton(
-                                    onClick = { onDeleteSource(source.id) },
+                                    onClick = { onExportSource(source) },
                                     modifier = Modifier
                                         .size(32.dp)
-                                        .testTag("delete_source_action_${source.id}")
+                                        .testTag("export_source_action_${source.id}")
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete custom source",
-                                        tint = RoseBadge,
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Export sanitized configuration",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(16.dp)
                                     )
+                                }
+
+                                if (!source.isBuiltIn) {
+                                    // Edit Custom Source Button
+                                    IconButton(
+                                        onClick = { onEditSource(source) },
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .testTag("edit_source_action_${source.id}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit source",
+                                            tint = CyanAccent,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+
+                                    // Delete Custom Source Button
+                                    IconButton(
+                                        onClick = { onDeleteSource(source.id) },
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .testTag("delete_source_action_${source.id}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete custom source",
+                                            tint = RoseBadge,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -500,7 +540,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 5. Section: About (Artflux by Swartzz)
+        // 5. Section: About (Artflux by Swartzz - No version text)
         SettingsSectionHeader(title = "About", icon = Icons.Default.Info)
         SettingsCard {
             Row(
@@ -513,36 +553,28 @@ fun SettingsScreen(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(NeonIndigo),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = TextPrimary,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(22.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))
 
-                Column {
-                    Text(
-                        text = "Artflux by Swartzz",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        fontFamily = FontFamily.SansSerif,
-                        letterSpacing = 0.5.sp,
-                        modifier = Modifier.testTag("about_artflux_title")
-                    )
-                    Text(
-                        text = "Version 2.0 (Add Source 2.0)",
-                        color = NeonIndigoLight,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Text(
+                    text = "Artflux by Swartzz",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.SansSerif,
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.testTag("about_artflux_title")
+                )
             }
         }
 
@@ -576,14 +608,14 @@ fun SettingsSectionHeader(title: String, icon: ImageVector) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = NeonIndigoLight,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = NeonIndigoLight,
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold,
             fontSize = 13.sp
         )
@@ -620,14 +652,14 @@ fun SettingsSwitchRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp
             )
         }
@@ -635,8 +667,10 @@ fun SettingsSwitchRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = TextPrimary,
-                checkedTrackColor = NeonIndigo
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
             ),
             modifier = if (testTag.isNotEmpty()) Modifier.testTag(testTag) else Modifier
         )
