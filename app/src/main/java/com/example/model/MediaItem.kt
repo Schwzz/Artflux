@@ -113,43 +113,74 @@ data class MediaItem(
             }
         }
 
+    private fun isVideoUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val clean = url.substringBefore('?').substringBefore('#').lowercase().trim()
+        return clean.endsWith(".mp4") || clean.endsWith(".webm") ||
+                clean.endsWith(".mkv") || clean.endsWith(".mov") || clean.endsWith(".avi")
+    }
+
     fun getThumbnailForQuality(quality: ThumbnailQuality): String {
+        // Video items must NEVER load a video URL as an image in the feed. Use image preview/poster.
+        if (mediaType == MediaType.VIDEO) {
+            return when (quality) {
+                ThumbnailQuality.Q360, ThumbnailQuality.Q480 -> {
+                    when {
+                        thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl) -> thumbnailUrl
+                        !sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl) -> sampleUrl!!
+                        !isVideoUrl(imageUrl) -> imageUrl
+                        else -> ""
+                    }
+                }
+                ThumbnailQuality.Q720, ThumbnailQuality.Q1080 -> {
+                    when {
+                        !sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl) -> sampleUrl!!
+                        thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl) -> thumbnailUrl
+                        !isVideoUrl(imageUrl) -> imageUrl
+                        else -> ""
+                    }
+                }
+            }
+        }
+
+        // GIF items: prefer lightweight image preview/sample for feed performance, never raw video
+        if (mediaType == MediaType.GIF) {
+            return when (quality) {
+                ThumbnailQuality.Q360, ThumbnailQuality.Q480 -> {
+                    when {
+                        thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl) -> thumbnailUrl
+                        !sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl) -> sampleUrl!!
+                        else -> imageUrl
+                    }
+                }
+                ThumbnailQuality.Q720, ThumbnailQuality.Q1080 -> {
+                    when {
+                        !sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl) -> sampleUrl!!
+                        thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl) -> thumbnailUrl
+                        else -> imageUrl
+                    }
+                }
+            }
+        }
+
+        // Image items: respect 360p/480p/720p/1080p quality preference while avoiding large/original files when preview exists
         return when (quality) {
             ThumbnailQuality.Q360, ThumbnailQuality.Q480 -> {
-                // Best at or below 480p: thumbnailUrl (~150-360p). If missing, sampleUrl (~720p).
-                // Never fall back to heavy original file or raw video for feed thumbnails if preview/sample exists.
-                if (thumbnailUrl.isNotBlank()) {
+                if (thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl)) {
                     thumbnailUrl
-                } else if (!sampleUrl.isNullOrBlank()) {
+                } else if (!sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl)) {
                     sampleUrl!!
-                } else if (mediaType != MediaType.VIDEO) {
-                    imageUrl
                 } else {
-                    ""
+                    imageUrl
                 }
             }
-            ThumbnailQuality.Q720 -> {
-                // Best around 720p: sampleUrl (~720-1080p). If missing, fall back to thumbnailUrl.
-                if (!sampleUrl.isNullOrBlank()) {
+            ThumbnailQuality.Q720, ThumbnailQuality.Q1080 -> {
+                if (!sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl)) {
                     sampleUrl!!
-                } else if (thumbnailUrl.isNotBlank()) {
+                } else if (thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl)) {
                     thumbnailUrl
-                } else if (mediaType != MediaType.VIDEO) {
-                    imageUrl
                 } else {
-                    ""
-                }
-            }
-            ThumbnailQuality.Q1080 -> {
-                // Best at or around 1080p: sampleUrl. If missing, fall back to thumbnailUrl to avoid loading heavy original
-                if (!sampleUrl.isNullOrBlank()) {
-                    sampleUrl!!
-                } else if (thumbnailUrl.isNotBlank()) {
-                    thumbnailUrl
-                } else if (mediaType != MediaType.VIDEO) {
                     imageUrl
-                } else {
-                    ""
                 }
             }
         }
@@ -158,11 +189,11 @@ data class MediaItem(
     fun getThumbnailFallbackUrl(primaryQuality: ThumbnailQuality): String {
         val primary = getThumbnailForQuality(primaryQuality)
         return when {
-            primary == thumbnailUrl && !sampleUrl.isNullOrBlank() -> sampleUrl!!
-            primary == sampleUrl && thumbnailUrl.isNotBlank() -> thumbnailUrl
-            thumbnailUrl.isNotBlank() -> thumbnailUrl
-            !sampleUrl.isNullOrBlank() -> sampleUrl!!
-            mediaType != MediaType.VIDEO -> imageUrl
+            primary == thumbnailUrl && !sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl) -> sampleUrl!!
+            primary == sampleUrl && thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl) -> thumbnailUrl
+            thumbnailUrl.isNotBlank() && !isVideoUrl(thumbnailUrl) -> thumbnailUrl
+            !sampleUrl.isNullOrBlank() && !isVideoUrl(sampleUrl) -> sampleUrl!!
+            mediaType != MediaType.VIDEO && !isVideoUrl(imageUrl) -> imageUrl
             else -> primary
         }
     }

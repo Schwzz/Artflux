@@ -1574,5 +1574,103 @@ class ExampleRobolectricTest {
     assertFalse(customSourceNoTags.canDiscoverGifs)
     assertFalse(customSourceNoTags.canDiscoverVideos)
   }
+
+  // --- 35. Batch 10.1: Media Pipeline Fix Tests ---
+
+  @Test
+  fun testBatch10_1MediaPipelineFixes() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+
+    // 1. Video with JPG preview: feed uses JPG preview, fullscreen uses actual video
+    val videoWithJpgPreview = MediaItem(
+      id = "vid_201",
+      title = "Cyberpunk City Animation",
+      imageUrl = "https://cdn.example.org/videos/cyberpunk.mp4",
+      thumbnailUrl = "https://cdn.example.org/thumbnails/cyberpunk_preview.jpg",
+      mediaType = MediaType.VIDEO
+    )
+    assertEquals(MediaType.VIDEO, videoWithJpgPreview.mediaType)
+    assertEquals("https://cdn.example.org/thumbnails/cyberpunk_preview.jpg", videoWithJpgPreview.getThumbnailForQuality(ThumbnailQuality.Q720))
+    assertEquals("https://cdn.example.org/thumbnails/cyberpunk_preview.jpg", videoWithJpgPreview.getThumbnailForQuality(ThumbnailQuality.Q360))
+    // Fullscreen viewer gets original video URL for ExoPlayer
+    assertEquals("https://cdn.example.org/videos/cyberpunk.mp4", videoWithJpgPreview.imageUrl)
+
+    // 2. GIF with JPG preview: feed uses lightweight JPG preview, fullscreen uses actual .gif
+    val gifWithJpgPreview = MediaItem(
+      id = "gif_202",
+      title = "Pixel Art Sprite",
+      imageUrl = "https://cdn.example.org/animations/sprite.gif",
+      thumbnailUrl = "https://cdn.example.org/thumbnails/sprite_poster.jpg",
+      sampleUrl = "https://cdn.example.org/samples/sprite_sample.jpg",
+      mediaType = MediaType.GIF
+    )
+    assertEquals(MediaType.GIF, gifWithJpgPreview.mediaType)
+    // Feed avoids downloading heavy GIF by using lightweight image preview/sample
+    assertEquals("https://cdn.example.org/samples/sprite_sample.jpg", gifWithJpgPreview.getThumbnailForQuality(ThumbnailQuality.Q720))
+    assertEquals("https://cdn.example.org/thumbnails/sprite_poster.jpg", gifWithJpgPreview.getThumbnailForQuality(ThumbnailQuality.Q480))
+    // GIF with no sampleUrl falls back to thumbnailUrl on Q720
+    val gifNoSample = gifWithJpgPreview.copy(sampleUrl = null)
+    assertEquals("https://cdn.example.org/thumbnails/sprite_poster.jpg", gifNoSample.getThumbnailForQuality(ThumbnailQuality.Q720))
+    // Fullscreen uses actual .gif
+    val fullscreenGifUrl = if (gifWithJpgPreview.mediaType == MediaType.GIF) gifWithJpgPreview.imageUrl else (gifWithJpgPreview.sampleUrl ?: gifWithJpgPreview.imageUrl)
+    assertEquals("https://cdn.example.org/animations/sprite.gif", fullscreenGifUrl)
+
+    // 3. Video never used as image thumbnail when no preview is provided
+    val rawVideoItem = MediaItem(
+      id = "vid_203",
+      title = "Raw Video No Poster",
+      imageUrl = "https://cdn.example.org/raw/clip.webm",
+      thumbnailUrl = "",
+      sampleUrl = null,
+      mediaType = MediaType.VIDEO
+    )
+    assertEquals("", rawVideoItem.getThumbnailForQuality(ThumbnailQuality.Q720))
+    assertEquals("", rawVideoItem.getThumbnailForQuality(ThumbnailQuality.Q360))
+    assertEquals("", rawVideoItem.getThumbnailFallbackUrl(ThumbnailQuality.Q720))
+
+    // 4. GIF detected from ".gif"
+    val gifDetected = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/art/animated.gif")
+    assertEquals(MediaType.GIF, gifDetected)
+
+    // 5. MP4, WebM, MKV, MOV detected as video
+    val mp4Detected = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clip.mp4")
+    val webmDetected = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clip.webm")
+    val mkvDetected = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clip.mkv")
+    val movDetected = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clip.mov")
+    assertEquals(MediaType.VIDEO, mp4Detected)
+    assertEquals(MediaType.VIDEO, webmDetected)
+    assertEquals(MediaType.VIDEO, mkvDetected)
+    assertEquals(MediaType.VIDEO, movDetected)
+
+    // 6. Rating conversions: "rating:s" -> SUGGESTIVE on Danbooru, "rating:q" -> SUGGESTIVE, "rating:e" -> ADULT
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("s", isDanbooru = true))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("sensitive", isDanbooru = true))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("q", isDanbooru = true))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("questionable", isDanbooru = false))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("q", isDanbooru = false))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("e", isDanbooru = true))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("explicit", isDanbooru = false))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("e", isDanbooru = false))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("g", isDanbooru = true))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("general", isDanbooru = true))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("s", isDanbooru = false))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("safe", isDanbooru = false))
+
+    // 7. Blur preference persistence across repository reloads
+    val prefsRepo = com.example.data.PreferencesRepository(context)
+    prefsRepo.setBlurNsfw(true)
+    assertTrue(prefsRepo.blurNsfw.value)
+
+    val reloadedPrefsRepo = com.example.data.PreferencesRepository(context)
+    assertTrue("Persisted blurNsfw must be loaded from preferences on startup", reloadedPrefsRepo.blurNsfw.value)
+
+    prefsRepo.setBlurNsfw(false)
+    assertFalse(prefsRepo.blurNsfw.value)
+    val reloadedFalseRepo = com.example.data.PreferencesRepository(context)
+    assertFalse(reloadedFalseRepo.blurNsfw.value)
+
+    // Reset back to true (default)
+    prefsRepo.setBlurNsfw(true)
+  }
 }
 

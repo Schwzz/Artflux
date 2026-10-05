@@ -422,25 +422,11 @@ class MediaApiClient {
         val tagsList = extractTags(obj, source.tagsField)
 
         // Rating parsing
-        val ratingStr = extractValue(obj, source.ratingField).lowercase().trim()
-        val rating = when {
-            source.apiUrl.contains("danbooru") -> {
-                when (ratingStr) {
-                    "g", "general" -> MediaRating.SAFE
-                    "s", "sensitive", "q", "questionable" -> MediaRating.SUGGESTIVE
-                    "e", "explicit" -> MediaRating.ADULT
-                    else -> MediaRating.SAFE
-                }
-            }
-            else -> {
-                when {
-                    ratingStr == "s" || ratingStr == "g" || ratingStr.contains("safe") || ratingStr.contains("general") -> MediaRating.SAFE
-                    ratingStr == "q" || ratingStr.contains("quest") || ratingStr.contains("sensit") || ratingStr.contains("suggest") -> MediaRating.SUGGESTIVE
-                    ratingStr == "e" || ratingStr.contains("expl") || ratingStr.contains("adult") -> MediaRating.ADULT
-                    else -> MediaRating.SAFE
-                }
-            }
-        }
+        val isDanbooruSource = source.apiUrl.contains("danbooru") || source.id.contains("danbooru")
+        val rating = parseRating(
+            ratingStr = extractValue(obj, source.ratingField),
+            isDanbooru = isDanbooruSource
+        )
 
         // Media type detection (GIF, VIDEO, IMAGE) using strong evidence hierarchy
         val explicitTypeField = extractValue(obj, source.mediaTypeField).ifBlank {
@@ -500,6 +486,31 @@ class MediaApiClient {
     }
 
     companion object {
+        fun parseRating(ratingStr: String?, isDanbooru: Boolean = false): MediaRating {
+            val r = ratingStr?.lowercase()?.trim().orEmpty()
+            return when {
+                isDanbooru && (r == "s" || r == "sensitive") -> MediaRating.SUGGESTIVE
+                isDanbooru && (r == "g" || r == "general") -> MediaRating.SAFE
+                isDanbooru && (r == "q" || r == "questionable") -> MediaRating.SUGGESTIVE
+                isDanbooru && (r == "e" || r == "explicit") -> MediaRating.ADULT
+                r == "s" && !isDanbooru -> MediaRating.SAFE
+                r == "g" || r == "general" || r == "safe" -> MediaRating.SAFE
+                r == "q" || r == "questionable" || r == "sensitive" || r == "suggestive" -> MediaRating.SUGGESTIVE
+                r == "e" || r == "explicit" || r == "adult" || r == "nsfw" -> MediaRating.ADULT
+                r.contains("adult") || r.contains("expl") -> MediaRating.ADULT
+                r.contains("quest") || r.contains("sensit") || r.contains("suggest") -> MediaRating.SUGGESTIVE
+                r.contains("safe") || r.contains("gen") -> MediaRating.SAFE
+                else -> MediaRating.SAFE
+            }
+        }
+
+        fun isVideoUrl(url: String?): Boolean {
+            if (url.isNullOrBlank()) return false
+            val clean = url.substringBefore('?').substringBefore('#').lowercase().trim()
+            return clean.endsWith(".mp4") || clean.endsWith(".webm") ||
+                    clean.endsWith(".mkv") || clean.endsWith(".mov") || clean.endsWith(".avi")
+        }
+
         /**
          * Detects the media type using the strongest available evidence in strict priority:
          * 1. Explicit API media type field
@@ -616,7 +627,14 @@ class MediaApiClient {
         if (source.apiUrl.contains("danbooru")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("large_file_url") } }
             val sampleUrl = rawSample.ifBlank { obj.optString("large_file_url") }.takeIf { it.isNotBlank() }
-            val previewUrl = rawThumb.ifBlank { obj.optString("preview_file_url").ifBlank { sampleUrl ?: fileUrl } }
+            val rawPreview = obj.optString("preview_file_url")
+            val previewUrl = when {
+                rawPreview.isNotBlank() && !isVideoUrl(rawPreview) -> rawPreview
+                rawThumb.isNotBlank() && !isVideoUrl(rawThumb) -> rawThumb
+                sampleUrl != null && !isVideoUrl(sampleUrl) -> sampleUrl
+                !isVideoUrl(fileUrl) -> fileUrl
+                else -> ""
+            }
             if (fileUrl.isNotBlank()) {
                 return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
             }
@@ -625,8 +643,15 @@ class MediaApiClient {
         // Yande.re handling
         if (source.apiUrl.contains("yande.re")) {
             val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("sample_url") } }
-            val previewUrl = rawThumb.ifBlank { obj.optString("preview_url").ifBlank { obj.optString("sample_url") } }
             val sampleUrl = rawSample.ifBlank { obj.optString("sample_url") }.takeIf { it.isNotBlank() }
+            val rawPreview = obj.optString("preview_url")
+            val previewUrl = when {
+                rawPreview.isNotBlank() && !isVideoUrl(rawPreview) -> rawPreview
+                rawThumb.isNotBlank() && !isVideoUrl(rawThumb) -> rawThumb
+                sampleUrl != null && !isVideoUrl(sampleUrl) -> sampleUrl
+                !isVideoUrl(fileUrl) -> fileUrl
+                else -> ""
+            }
             if (fileUrl.isNotBlank()) {
                 return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
             }
@@ -635,12 +660,6 @@ class MediaApiClient {
         // Generic URL resolution consistently respecting configured fields
         val full = fixUrl(rawImage)
         val sample = if (rawSample.isNotBlank()) fixUrl(rawSample) else null
-
-        fun isVideoUrl(url: String): Boolean {
-            val clean = url.substringBefore('?').lowercase()
-            return clean.endsWith(".mp4") || clean.endsWith(".webm") ||
-                    clean.endsWith(".mkv") || clean.endsWith(".mov")
-        }
 
         // Never use a known video URL as a feed image thumbnail.
         // Avoid falling back to the original full-resolution file when a safer preview is available.

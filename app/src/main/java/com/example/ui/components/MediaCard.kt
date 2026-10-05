@@ -97,63 +97,94 @@ fun MediaCard(
                 .aspectRatio(item.aspectRatio)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            // Media Image with optional NSFW blur (No badges, text, or eye icon overlay when blurred)
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(if (isPrimaryFailed) fallbackDisplayUrl else primaryDisplayUrl)
-                    .crossfade(true)
-                    .build(),
-                imageLoader = imageLoader,
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (shouldBlur) Modifier.blur(22.dp) else Modifier),
-                loading = {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = NeonIndigo,
-                            strokeWidth = 2.dp
-                        )
-                    }
-                },
-                error = {
-                    if (!isPrimaryFailed && primaryDisplayUrl != fallbackDisplayUrl) {
-                        isPrimaryFailed = true
-                    } else {
-                        // Clean, polished error state
+            val effectiveDisplayUrl = if (isPrimaryFailed) fallbackDisplayUrl else primaryDisplayUrl
+
+            if (effectiveDisplayUrl.isNotBlank()) {
+                // Media Image with optional NSFW blur (No badges, text, or eye icon overlay when blurred)
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(effectiveDisplayUrl)
+                        .crossfade(true)
+                        .build(),
+                    imageLoader = imageLoader,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (shouldBlur) Modifier.blur(22.dp) else Modifier),
+                    loading = {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = NeonIndigo,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    },
+                    error = {
+                        if (!isPrimaryFailed && primaryDisplayUrl != fallbackDisplayUrl && fallbackDisplayUrl.isNotBlank()) {
+                            isPrimaryFailed = true
+                        } else {
+                            // Clean, polished error state
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = "Preview unavailable",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = item.sourceName,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (item.mediaType == MediaType.VIDEO) Icons.Default.PlayArrow else Icons.Default.Image,
+                                        contentDescription = "Preview unavailable",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = item.sourceName,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
+                )
+            } else {
+                // Clean placeholder state when no image preview is available
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (item.mediaType == MediaType.VIDEO) Icons.Default.PlayArrow else Icons.Default.Image,
+                            contentDescription = item.title,
+                            tint = if (item.mediaType == MediaType.VIDEO) CyanAccent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = item.sourceName,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
-            )
+            }
 
             // Centered Play Button overlay for Videos (Only if not blurred)
             if (item.mediaType == MediaType.VIDEO && !shouldBlur) {
