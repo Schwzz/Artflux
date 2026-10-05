@@ -46,6 +46,7 @@ import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaType
 import com.example.model.ThumbnailQuality
+import com.example.util.ArtfluxBlurTransformation
 import com.example.ui.theme.CardBorder
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.DarkBackground
@@ -106,18 +107,23 @@ fun MediaCard(
             val effectiveDisplayUrl = if (isPrimaryFailed) fallbackDisplayUrl else primaryDisplayUrl
 
             if (effectiveDisplayUrl.isNotBlank() && !MediaApiClient.isVideoUrl(effectiveDisplayUrl)) {
-                // Media Image with optional NSFW blur (No badges, text, or eye icon overlay when blurred)
+                // Media Image with real bitmap/Compose blur (NSFW media remains visible underneath real blur)
+                val imageRequestBuilder = ImageRequest.Builder(context)
+                    .data(effectiveDisplayUrl)
+                    .crossfade(true)
+
+                if (shouldBlur) {
+                    imageRequestBuilder.transformations(ArtfluxBlurTransformation(radius = 22, sampling = 4f))
+                }
+
                 SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(effectiveDisplayUrl)
-                        .crossfade(true)
-                        .build(),
+                    model = imageRequestBuilder.build(),
                     imageLoader = imageLoader,
                     contentDescription = item.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(if (shouldBlur) Modifier.blur(48.dp) else Modifier),
+                        .then(if (shouldBlur) Modifier.blur(24.dp) else Modifier),
                     loading = {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -190,15 +196,6 @@ fun MediaCard(
                         )
                     }
                 }
-            }
-
-            if (shouldBlur) {
-                // Fully opaque privacy overlay for 100% reliable protection (underlying NSFW image is completely obscured)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface)
-                )
             }
 
             // Centered Play Button overlay for Videos (Only if not blurred)

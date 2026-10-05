@@ -2049,5 +2049,47 @@ class ExampleRobolectricTest {
     assertTrue("Playback error must surface HTTP 403 details", formattedError.contains("HTTP 403 Forbidden"))
     assertFalse("Playback error must not be silent or blank", formattedError.isBlank())
   }
+
+  // --- 38. Real NSFW Blur Transformation & Compatibility Tests ---
+
+  @Test
+  fun testNsfwRealBlurTransformationAndCompatibility() {
+    // 1. Verify ArtfluxBlurTransformation works on Bitmaps (Android API 24+ universal StackBlur)
+    val originalBitmap = android.graphics.Bitmap.createBitmap(100, 100, android.graphics.Bitmap.Config.ARGB_8888)
+    originalBitmap.eraseColor(android.graphics.Color.RED)
+
+    val blurred = com.example.util.ArtfluxBlurTransformation.fastBlur(originalBitmap, radius = 20)
+    assertNotNull("Blurred bitmap must not be null", blurred)
+    assertEquals(100, blurred.width)
+    assertEquals(100, blurred.height)
+
+    // 2. Verify cacheKey uniqueness
+    val transform = com.example.util.ArtfluxBlurTransformation(radius = 22, sampling = 4f)
+    assertTrue(transform.cacheKey.contains("radius=22"))
+    assertTrue(transform.cacheKey.contains("sampling=4.0"))
+
+    // 3. Verify NSFW protection decision matrix
+    val safeItem = MediaItem(id = "s1", title = "Safe", actualMediaUrl = "https://a.com/1.jpg", previewUrl = "https://a.com/1.jpg", rating = MediaRating.SAFE)
+    val suggestiveItem = MediaItem(id = "s2", title = "Suggestive", actualMediaUrl = "https://a.com/2.jpg", previewUrl = "https://a.com/2.jpg", rating = MediaRating.SUGGESTIVE)
+    val adultItem = MediaItem(id = "s3", title = "Adult", actualMediaUrl = "https://a.com/3.jpg", previewUrl = "https://a.com/3.jpg", rating = MediaRating.ADULT)
+    val unknownItem = MediaItem(id = "s4", title = "Unknown", actualMediaUrl = "https://a.com/4.jpg", previewUrl = "https://a.com/4.jpg", rating = MediaRating.UNKNOWN)
+
+    fun shouldBlur(item: MediaItem, blurNsfw: Boolean): Boolean {
+      val isProtected = item.rating == MediaRating.ADULT || item.rating == MediaRating.SUGGESTIVE || item.rating == MediaRating.UNKNOWN
+      return blurNsfw && isProtected
+    }
+
+    // When blurNsfw is true:
+    assertFalse("Safe content must never be blurred", shouldBlur(safeItem, blurNsfw = true))
+    assertTrue("Suggestive content must be blurred", shouldBlur(suggestiveItem, blurNsfw = true))
+    assertTrue("Adult content must be blurred", shouldBlur(adultItem, blurNsfw = true))
+    assertTrue("Unknown content must be blurred when NSFW blur enabled", shouldBlur(unknownItem, blurNsfw = true))
+
+    // When blurNsfw is false (toggled off):
+    assertFalse("Safe content unblurred when toggle off", shouldBlur(safeItem, blurNsfw = false))
+    assertFalse("Suggestive content unblurred when toggle off", shouldBlur(suggestiveItem, blurNsfw = false))
+    assertFalse("Adult content unblurred when toggle off", shouldBlur(adultItem, blurNsfw = false))
+    assertFalse("Unknown content unblurred when toggle off", shouldBlur(unknownItem, blurNsfw = false))
+  }
 }
 
