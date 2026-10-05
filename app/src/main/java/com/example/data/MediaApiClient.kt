@@ -462,11 +462,31 @@ class MediaApiClient {
             ?: obj.optInt("favorites", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
         val views = obj.optInt("views", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
 
+        val staticPreview = when (mediaType) {
+            MediaType.VIDEO -> when {
+                finalThumb.isNotBlank() && !isVideoUrl(finalThumb) -> finalThumb
+                !finalSample.isNullOrBlank() && !isVideoUrl(finalSample) -> finalSample
+                else -> ""
+            }
+            MediaType.GIF -> when {
+                finalThumb.isNotBlank() && !isVideoUrl(finalThumb) -> finalThumb
+                !finalSample.isNullOrBlank() && !isVideoUrl(finalSample) -> finalSample
+                !isVideoUrl(finalImage) -> finalImage
+                else -> ""
+            }
+            MediaType.IMAGE, MediaType.ALL -> when {
+                finalThumb.isNotBlank() && !isVideoUrl(finalThumb) -> finalThumb
+                !finalSample.isNullOrBlank() && !isVideoUrl(finalSample) -> finalSample
+                !isVideoUrl(finalImage) -> finalImage
+                else -> ""
+            }
+        }
+
         return MediaItem(
             id = id,
             title = title,
-            imageUrl = finalImage,
-            thumbnailUrl = finalThumb,
+            actualMediaUrl = finalImage,
+            previewUrl = staticPreview,
             sampleUrl = finalSample,
             postUrl = postUrl,
             tags = tagsList,

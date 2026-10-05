@@ -12,6 +12,7 @@ import com.example.model.MediaSourceConfig
 import com.example.model.MediaType
 import com.example.model.ThumbnailQuality
 import com.example.ui.MediaBrowserViewModel
+import com.example.util.ArtfluxNetwork
 import com.example.util.QueryBuilder
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -433,8 +434,8 @@ class ExampleRobolectricTest {
     val item = MediaItem(
       id = "12345",
       title = "Artwork",
-      imageUrl = "https://cdn.booru.org/original/12345.jpg",
-      thumbnailUrl = "https://cdn.booru.org/preview/12345.jpg",
+      actualMediaUrl = "https://cdn.booru.org/original/12345.jpg",
+      previewUrl = "https://cdn.booru.org/preview/12345.jpg",
       sampleUrl = "https://cdn.booru.org/sample/12345.jpg",
       fileExt = "jpg",
       fileSize = 1048576L
@@ -589,8 +590,8 @@ class ExampleRobolectricTest {
     val imageItem = MediaItem(
       id = "101",
       title = "Scenery Art",
-      imageUrl = "https://cdn.artflux.org/files/original.png",
-      thumbnailUrl = "https://cdn.artflux.org/thumbs/preview.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/files/original.png",
+      previewUrl = "https://cdn.artflux.org/thumbs/preview.jpg",
       sampleUrl = "https://cdn.artflux.org/samples/sample_720.jpg",
       mediaType = MediaType.IMAGE
     )
@@ -612,8 +613,8 @@ class ExampleRobolectricTest {
     val gifItem = MediaItem(
       id = "202",
       title = "Animated Anime",
-      imageUrl = "https://cdn.artflux.org/files/animation.gif",
-      thumbnailUrl = "https://cdn.artflux.org/thumbs/static_frame.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/files/animation.gif",
+      previewUrl = "https://cdn.artflux.org/thumbs/static_frame.jpg",
       mediaType = MediaType.GIF
     )
 
@@ -624,8 +625,8 @@ class ExampleRobolectricTest {
     val videoItem = MediaItem(
       id = "303",
       title = "AMV Clip",
-      imageUrl = "https://cdn.artflux.org/files/video.mp4",
-      thumbnailUrl = "https://cdn.artflux.org/thumbs/video_thumb.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/files/video.mp4",
+      previewUrl = "https://cdn.artflux.org/thumbs/video_thumb.jpg",
       mediaType = MediaType.VIDEO
     )
 
@@ -641,8 +642,8 @@ class ExampleRobolectricTest {
     val item = MediaItem(
       id = "404",
       title = "Artwork",
-      imageUrl = "https://cdn.booru.org/orig.jpg",
-      thumbnailUrl = "https://cdn.booru.org/thumb.jpg",
+      actualMediaUrl = "https://cdn.booru.org/orig.jpg",
+      previewUrl = "https://cdn.booru.org/thumb.jpg",
       sampleUrl = "https://cdn.booru.org/sample.jpg"
     )
 
@@ -921,8 +922,8 @@ class ExampleRobolectricTest {
     val imageItem = MediaItem(
       id = "501",
       title = "Static Image",
-      imageUrl = "https://cdn.artflux.org/full.jpg",
-      thumbnailUrl = "https://cdn.artflux.org/thumb_360.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/full.jpg",
+      previewUrl = "https://cdn.artflux.org/thumb_360.jpg",
       sampleUrl = "https://cdn.artflux.org/sample_720.jpg",
       mediaType = MediaType.IMAGE
     )
@@ -933,8 +934,8 @@ class ExampleRobolectricTest {
     val gifItem = MediaItem(
       id = "502",
       title = "GIF Preview",
-      imageUrl = "https://cdn.artflux.org/anim.gif",
-      thumbnailUrl = "https://cdn.artflux.org/gif_thumb_360.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/anim.gif",
+      previewUrl = "https://cdn.artflux.org/gif_thumb_360.jpg",
       sampleUrl = "https://cdn.artflux.org/gif_sample_720.jpg",
       mediaType = MediaType.GIF
     )
@@ -945,8 +946,8 @@ class ExampleRobolectricTest {
     val videoItem = MediaItem(
       id = "503",
       title = "Video Clip",
-      imageUrl = "https://cdn.artflux.org/movie.mp4",
-      thumbnailUrl = "https://cdn.artflux.org/video_thumb_360.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/movie.mp4",
+      previewUrl = "https://cdn.artflux.org/video_thumb_360.jpg",
       sampleUrl = "https://cdn.artflux.org/video_sample_720.jpg",
       mediaType = MediaType.VIDEO
     )
@@ -963,8 +964,8 @@ class ExampleRobolectricTest {
     val heavyImage = MediaItem(
       id = "601",
       title = "Large Raw File",
-      imageUrl = "https://cdn.artflux.org/original_raw_50mb.png",
-      thumbnailUrl = "https://cdn.artflux.org/preview_150.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/original_raw_50mb.png",
+      previewUrl = "https://cdn.artflux.org/preview_150.jpg",
       sampleUrl = null,
       mediaType = MediaType.IMAGE
     )
@@ -975,8 +976,8 @@ class ExampleRobolectricTest {
     val videoNoSample = MediaItem(
       id = "602",
       title = "MP4 Video",
-      imageUrl = "https://cdn.artflux.org/full_video.mp4",
-      thumbnailUrl = "https://cdn.artflux.org/video_preview.jpg",
+      actualMediaUrl = "https://cdn.artflux.org/full_video.mp4",
+      previewUrl = "https://cdn.artflux.org/video_preview.jpg",
       sampleUrl = null,
       mediaType = MediaType.VIDEO
     )
@@ -988,9 +989,9 @@ class ExampleRobolectricTest {
 
   @Test
   fun testDownloadToastMessageMediaAwareFormat() {
-    val imageItem = MediaItem(id = "701", title = "Sunset Title", imageUrl = "https://cdn.org/1.jpg", thumbnailUrl = "https://cdn.org/t1.jpg", mediaType = MediaType.IMAGE)
-    val gifItem = MediaItem(id = "702", title = "Anime Dance", imageUrl = "https://cdn.org/2.gif", thumbnailUrl = "https://cdn.org/t2.jpg", mediaType = MediaType.GIF)
-    val videoItem = MediaItem(id = "703", title = "AMV Clip", imageUrl = "https://cdn.org/3.mp4", thumbnailUrl = "https://cdn.org/t3.jpg", mediaType = MediaType.VIDEO)
+    val imageItem = MediaItem(id = "701", title = "Sunset Title", actualMediaUrl = "https://cdn.org/1.jpg", previewUrl = "https://cdn.org/t1.jpg", mediaType = MediaType.IMAGE)
+    val gifItem = MediaItem(id = "702", title = "Anime Dance", actualMediaUrl = "https://cdn.org/2.gif", previewUrl = "https://cdn.org/t2.jpg", mediaType = MediaType.GIF)
+    val videoItem = MediaItem(id = "703", title = "AMV Clip", actualMediaUrl = "https://cdn.org/3.mp4", previewUrl = "https://cdn.org/t3.jpg", mediaType = MediaType.VIDEO)
 
     fun formatDownloadMessage(item: MediaItem, quality: com.example.model.DownloadQuality): String {
       val mediaLabel = when (item.mediaType) {
@@ -1170,8 +1171,8 @@ class ExampleRobolectricTest {
     val item1 = MediaItem(
       id = "1",
       title = "Item 1",
-      imageUrl = "https://cdn.org/1.jpg",
-      thumbnailUrl = "https://cdn.org/1_t.jpg",
+      actualMediaUrl = "https://cdn.org/1.jpg",
+      previewUrl = "https://cdn.org/1_t.jpg",
       tags = List(15) { "tag$it" }, // 15 tags
       rating = MediaRating.ADULT,
       score = 500,
@@ -1181,8 +1182,8 @@ class ExampleRobolectricTest {
     val item2 = MediaItem(
       id = "2",
       title = "Item 2",
-      imageUrl = "https://cdn.org/2.jpg",
-      thumbnailUrl = "https://cdn.org/2_t.jpg",
+      actualMediaUrl = "https://cdn.org/2.jpg",
+      previewUrl = "https://cdn.org/2_t.jpg",
       tags = listOf("one_tag"), // 1 tag
       rating = MediaRating.SAFE,
       score = 50,
@@ -1192,8 +1193,8 @@ class ExampleRobolectricTest {
     val item3 = MediaItem(
       id = "3",
       title = "Item 3",
-      imageUrl = "https://cdn.org/3.jpg",
-      thumbnailUrl = "https://cdn.org/3_t.jpg",
+      actualMediaUrl = "https://cdn.org/3.jpg",
+      previewUrl = "https://cdn.org/3_t.jpg",
       tags = List(30) { "tag$it" }, // 30 tags
       rating = MediaRating.SAFE,
       score = 150,
@@ -1226,8 +1227,8 @@ class ExampleRobolectricTest {
 
     // 3. Natural order preserved when metrics are absent (do NOT pretend sorting is meaningful)
     val noMetricsList = listOf(
-      MediaItem(id = "a", title = "A", imageUrl = "https://cdn.org/a.jpg", thumbnailUrl = "https://cdn.org/at.jpg", tags = listOf("t1", "t2", "t3"), rating = MediaRating.ADULT),
-      MediaItem(id = "b", title = "B", imageUrl = "https://cdn.org/b.jpg", thumbnailUrl = "https://cdn.org/bt.jpg", tags = listOf("t1"), rating = MediaRating.SAFE)
+      MediaItem(id = "a", title = "A", actualMediaUrl = "https://cdn.org/a.jpg", previewUrl = "https://cdn.org/at.jpg", tags = listOf("t1", "t2", "t3"), rating = MediaRating.ADULT),
+      MediaItem(id = "b", title = "B", actualMediaUrl = "https://cdn.org/b.jpg", previewUrl = "https://cdn.org/bt.jpg", tags = listOf("t1"), rating = MediaRating.SAFE)
     )
     @Suppress("UNCHECKED_CAST")
     val popularNoMetrics = filterMethod.invoke(viewModel, noMetricsList, FilterState(sort = com.example.model.SortOption.POPULAR)) as List<MediaItem>
@@ -1321,8 +1322,8 @@ class ExampleRobolectricTest {
     val adultItem = MediaItem(
       id = "item_adult_1",
       title = "Adult Item",
-      imageUrl = "https://cdn.example.org/full/adult_1.jpg",
-      thumbnailUrl = "https://cdn.example.org/preview/adult_1.jpg",
+      actualMediaUrl = "https://cdn.example.org/full/adult_1.jpg",
+      previewUrl = "https://cdn.example.org/preview/adult_1.jpg",
       sampleUrl = "https://cdn.example.org/sample/adult_1.jpg",
       rating = MediaRating.ADULT,
       mediaType = MediaType.IMAGE,
@@ -1349,9 +1350,9 @@ class ExampleRobolectricTest {
     val fullscreenNoSample = noSampleItem.sampleUrl?.takeIf { it.isNotBlank() } ?: noSampleItem.imageUrl
     assertEquals("https://cdn.example.org/full/adult_1.jpg", fullscreenNoSample)
 
-    // For GIFs, fullscreen uses imageUrl
-    val gifItem = adultItem.copy(mediaType = MediaType.GIF, imageUrl = "https://cdn.example.org/anim/dance.gif")
-    val gifDisplayUrl = if (gifItem.mediaType == MediaType.GIF) gifItem.imageUrl else (gifItem.sampleUrl ?: gifItem.imageUrl)
+    // For GIFs, fullscreen uses actualMediaUrl / imageUrl
+    val gifItem = adultItem.copy(mediaType = MediaType.GIF, actualMediaUrl = "https://cdn.example.org/anim/dance.gif")
+    val gifDisplayUrl = if (gifItem.mediaType == MediaType.GIF) gifItem.actualMediaUrl else (gifItem.sampleUrl ?: gifItem.actualMediaUrl)
     assertEquals("https://cdn.example.org/anim/dance.gif", gifDisplayUrl)
 
     // Preview thumbnail key uses cached preview/sample
@@ -1369,8 +1370,8 @@ class ExampleRobolectricTest {
     val imageItem = MediaItem(
       id = "img_901",
       title = "Hatsune Miku Artwork",
-      imageUrl = "https://cdn.example.org/art/miku.png",
-      thumbnailUrl = "https://cdn.example.org/preview/miku.png",
+      actualMediaUrl = "https://cdn.example.org/art/miku.png",
+      previewUrl = "https://cdn.example.org/preview/miku.png",
       mediaType = MediaType.IMAGE,
       fileExt = "png",
       sourceName = "Safebooru"
@@ -1379,8 +1380,8 @@ class ExampleRobolectricTest {
     val gifItem = MediaItem(
       id = "gif_902",
       title = "Dancing Cat",
-      imageUrl = "https://cdn.example.org/anim/cat.gif",
-      thumbnailUrl = "https://cdn.example.org/preview/cat.jpg",
+      actualMediaUrl = "https://cdn.example.org/anim/cat.gif",
+      previewUrl = "https://cdn.example.org/preview/cat.jpg",
       mediaType = MediaType.GIF,
       sourceName = "Danbooru"
     )
@@ -1388,8 +1389,8 @@ class ExampleRobolectricTest {
     val videoItem = MediaItem(
       id = "vid_903",
       title = "Short Animation Clip",
-      imageUrl = "https://cdn.example.org/clips/clip.webm",
-      thumbnailUrl = "https://cdn.example.org/preview/clip.jpg",
+      actualMediaUrl = "https://cdn.example.org/clips/clip.webm",
+      previewUrl = "https://cdn.example.org/preview/clip.jpg",
       mediaType = MediaType.VIDEO,
       fileExt = "webm",
       sourceName = "Gelbooru"
@@ -1444,8 +1445,8 @@ class ExampleRobolectricTest {
     val safeItem = MediaItem(
       id = "item_1",
       title = "Safe Art",
-      imageUrl = "https://example.com/safe.jpg",
-      thumbnailUrl = "https://example.com/thumb.jpg",
+      actualMediaUrl = "https://example.com/safe.jpg",
+      previewUrl = "https://example.com/thumb.jpg",
       rating = MediaRating.SAFE
     )
     val suggestiveItem = safeItem.copy(id = "item_2", rating = MediaRating.SUGGESTIVE)
@@ -1533,8 +1534,8 @@ class ExampleRobolectricTest {
     val videoItemWithThumb = MediaItem(
       id = "vid_101",
       title = "WebM Animation",
-      imageUrl = "https://cdn.example.org/video.webm",
-      thumbnailUrl = "https://cdn.example.org/preview.jpg",
+      actualMediaUrl = "https://cdn.example.org/video.webm",
+      previewUrl = "https://cdn.example.org/preview.jpg",
       mediaType = MediaType.VIDEO
     )
     assertEquals("https://cdn.example.org/preview.jpg", videoItemWithThumb.getThumbnailForQuality(ThumbnailQuality.Q720))
@@ -1542,8 +1543,8 @@ class ExampleRobolectricTest {
     val videoItemWithoutThumb = MediaItem(
       id = "vid_102",
       title = "Raw Video Only",
-      imageUrl = "https://cdn.example.org/video.mp4",
-      thumbnailUrl = "",
+      actualMediaUrl = "https://cdn.example.org/video.mp4",
+      previewUrl = "",
       mediaType = MediaType.VIDEO
     )
     // Never fall back to heavy video file as thumbnail
@@ -1553,8 +1554,8 @@ class ExampleRobolectricTest {
     val imageItem = MediaItem(
       id = "img_103",
       title = "Standard Anime Artwork",
-      imageUrl = "https://cdn.example.org/art.jpg",
-      thumbnailUrl = "https://cdn.example.org/thumb.jpg",
+      actualMediaUrl = "https://cdn.example.org/art.jpg",
+      previewUrl = "https://cdn.example.org/thumb.jpg",
       mediaType = MediaType.IMAGE
     )
     assertEquals(MediaType.IMAGE, imageItem.mediaType)
@@ -1586,8 +1587,8 @@ class ExampleRobolectricTest {
     val videoWithJpgPreview = MediaItem(
       id = "vid_201",
       title = "Cyberpunk City Animation",
-      imageUrl = "https://cdn.example.org/videos/cyberpunk.mp4",
-      thumbnailUrl = "https://cdn.example.org/thumbnails/cyberpunk_preview.jpg",
+      actualMediaUrl = "https://cdn.example.org/videos/cyberpunk.mp4",
+      previewUrl = "https://cdn.example.org/thumbnails/cyberpunk_preview.jpg",
       mediaType = MediaType.VIDEO
     )
     assertEquals(MediaType.VIDEO, videoWithJpgPreview.mediaType)
@@ -1600,8 +1601,8 @@ class ExampleRobolectricTest {
     val gifWithJpgPreview = MediaItem(
       id = "gif_202",
       title = "Pixel Art Sprite",
-      imageUrl = "https://cdn.example.org/animations/sprite.gif",
-      thumbnailUrl = "https://cdn.example.org/thumbnails/sprite_poster.jpg",
+      actualMediaUrl = "https://cdn.example.org/animations/sprite.gif",
+      previewUrl = "https://cdn.example.org/thumbnails/sprite_poster.jpg",
       sampleUrl = "https://cdn.example.org/samples/sprite_sample.jpg",
       mediaType = MediaType.GIF
     )
@@ -1620,8 +1621,8 @@ class ExampleRobolectricTest {
     val rawVideoItem = MediaItem(
       id = "vid_203",
       title = "Raw Video No Poster",
-      imageUrl = "https://cdn.example.org/raw/clip.webm",
-      thumbnailUrl = "",
+      actualMediaUrl = "https://cdn.example.org/raw/clip.webm",
+      previewUrl = "",
       sampleUrl = null,
       mediaType = MediaType.VIDEO
     )
@@ -1750,8 +1751,8 @@ class ExampleRobolectricTest {
     val safeItem = MediaItem(
       id = "item_safe",
       title = "Safe Art",
-      imageUrl = "https://example.com/safe.jpg",
-      thumbnailUrl = "https://example.com/thumb.jpg",
+      actualMediaUrl = "https://example.com/safe.jpg",
+      previewUrl = "https://example.com/thumb.jpg",
       rating = MediaRating.SAFE
     )
     val suggestiveItem = safeItem.copy(id = "item_suggestive", rating = MediaRating.SUGGESTIVE)
@@ -1773,32 +1774,182 @@ class ExampleRobolectricTest {
 
   @Test
   fun testVideoAntiHotlinkHeadersAndExoPlayerFallback() {
-    fun resolveReferer(url: String): String {
-      val urlLower = url.lowercase()
-      return when {
-        urlLower.contains("gelbooru.com") -> "https://gelbooru.com/"
-        urlLower.contains("danbooru") || urlLower.contains("donmai.us") -> "https://danbooru.donmai.us/"
-        urlLower.contains("safebooru.org") || urlLower.contains("safebooru") -> "https://safebooru.org/"
-        urlLower.contains("yande.re") -> "https://yande.re/"
-        else -> {
-          val uri = Uri.parse(url)
-          "${uri.scheme ?: "https"}://${uri.host}/"
-        }
-      }
-    }
-
     // Danbooru videos on cdn.donmai.us must resolve to danbooru.donmai.us referer
-    assertEquals("https://danbooru.donmai.us/", resolveReferer("https://cdn.donmai.us/original/ab/cd/clip.mp4"))
-    assertEquals("https://danbooru.donmai.us/", resolveReferer("https://raikou1.donmai.us/sample/12/34/clip.mp4"))
+    assertEquals("https://danbooru.donmai.us/", ArtfluxNetwork.getRefererForUrl("https://cdn.donmai.us/original/ab/cd/clip.mp4"))
+    assertEquals("https://danbooru.donmai.us/", ArtfluxNetwork.getRefererForUrl("https://raikou1.donmai.us/sample/12/34/clip.mp4"))
 
     // Gelbooru videos
-    assertEquals("https://gelbooru.com/", resolveReferer("https://img4.gelbooru.com/images/56/78/sample.mp4"))
+    assertEquals("https://gelbooru.com/", ArtfluxNetwork.getRefererForUrl("https://img4.gelbooru.com/images/56/78/sample.mp4"))
 
     // Safebooru
-    assertEquals("https://safebooru.org/", resolveReferer("https://safebooru.org/samples/12/sample_34.mp4"))
+    assertEquals("https://safebooru.org/", ArtfluxNetwork.getRefererForUrl("https://safebooru.org/samples/12/sample_34.mp4"))
 
-    // Custom booru
-    assertEquals("https://custombooru.example.com/", resolveReferer("https://custombooru.example.com/data/video.webm"))
+    // Yande.re
+    assertEquals("https://yande.re/", ArtfluxNetwork.getRefererForUrl("https://files.yande.re/image/sample.jpg"))
+
+    // Custom booru origin fallback
+    assertEquals("https://custombooru.example.com/", ArtfluxNetwork.getRefererForUrl("https://custombooru.example.com/data/video.webm"))
+
+    // Header bundle check
+    val headers = ArtfluxNetwork.getHeadersForUrl("https://img4.gelbooru.com/images/1/2/pic.jpg")
+    assertEquals(ArtfluxNetwork.DEFAULT_USER_AGENT, headers["User-Agent"])
+    assertEquals("https://gelbooru.com/", headers["Referer"])
+  }
+
+  // --- 36. Deterministic Media Pipeline Tests ---
+
+  @Test
+  fun testDeterministicMediaPipelineResolutionAndSeparation() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val apiClient = MediaApiClient()
+
+    // 1. Normal image resolution
+    val imageItem = MediaItem(
+      id = "img_1001",
+      title = "Sunset Landscape",
+      actualMediaUrl = "https://cdn.example.org/full/sunset.png",
+      previewUrl = "https://cdn.example.org/preview/sunset.jpg",
+      mediaType = MediaType.IMAGE,
+      rating = MediaRating.SAFE
+    )
+    assertEquals("https://cdn.example.org/full/sunset.png", imageItem.actualMediaUrl)
+    assertEquals("https://cdn.example.org/preview/sunset.jpg", imageItem.previewUrl)
+    assertEquals(MediaType.IMAGE, imageItem.mediaType)
+    assertEquals(MediaRating.SAFE, imageItem.rating)
+    // Backward compatibility getters
+    assertEquals(imageItem.actualMediaUrl, imageItem.imageUrl)
+    assertEquals(imageItem.previewUrl, imageItem.thumbnailUrl)
+    // Feed uses previewUrl, fullscreen uses actualMediaUrl
+    assertEquals("https://cdn.example.org/preview/sunset.jpg", imageItem.getThumbnailForQuality(ThumbnailQuality.Q360))
+    assertEquals("https://cdn.example.org/full/sunset.png", imageItem.getDownloadUrl(com.example.model.DownloadQuality.ORIGINAL))
+
+    // 2. GIF resolution: feed uses static previewUrl, fullscreen uses actual animated GIF
+    val gifItem = MediaItem(
+      id = "gif_1002",
+      title = "Character Animation",
+      actualMediaUrl = "https://cdn.example.org/animations/dance.gif",
+      previewUrl = "https://cdn.example.org/posters/dance_poster.jpg",
+      mediaType = MediaType.GIF,
+      rating = MediaRating.SAFE
+    )
+    assertEquals("https://cdn.example.org/animations/dance.gif", gifItem.actualMediaUrl)
+    assertEquals("https://cdn.example.org/posters/dance_poster.jpg", gifItem.previewUrl)
+    assertEquals(MediaType.GIF, gifItem.mediaType)
+    // Separation check: actual media != static preview
+    assertTrue(gifItem.actualMediaUrl.endsWith(".gif"))
+    assertTrue(gifItem.previewUrl.endsWith(".jpg"))
+    // Feed gets static preview, avoiding downloading multi-megabyte GIF
+    assertEquals("https://cdn.example.org/posters/dance_poster.jpg", gifItem.getThumbnailForQuality(ThumbnailQuality.Q360))
+    // Downloads and fullscreen use the real animated GIF
+    assertEquals("https://cdn.example.org/animations/dance.gif", gifItem.getDownloadUrl(com.example.model.DownloadQuality.ORIGINAL))
+    assertEquals("https://cdn.example.org/animations/dance.gif", gifItem.getDownloadUrl(com.example.model.DownloadQuality.Q360))
+
+    // 3. Video resolution: feed uses static preview, NEVER a video file
+    val videoWithPoster = MediaItem(
+      id = "vid_1003",
+      title = "AMV Trailer",
+      actualMediaUrl = "https://cdn.example.org/videos/clip.mp4",
+      previewUrl = "https://cdn.example.org/posters/clip_poster.jpg",
+      mediaType = MediaType.VIDEO,
+      rating = MediaRating.SUGGESTIVE
+    )
+    assertEquals("https://cdn.example.org/videos/clip.mp4", videoWithPoster.actualMediaUrl)
+    assertEquals("https://cdn.example.org/posters/clip_poster.jpg", videoWithPoster.previewUrl)
+    assertEquals(MediaType.VIDEO, videoWithPoster.mediaType)
+    assertEquals(MediaRating.SUGGESTIVE, videoWithPoster.rating)
+    assertFalse(MediaApiClient.isVideoUrl(videoWithPoster.previewUrl))
+    assertEquals("https://cdn.example.org/posters/clip_poster.jpg", videoWithPoster.getThumbnailForQuality(ThumbnailQuality.Q360))
+    // Video downloads always preserve the real original MP4
+    assertEquals("https://cdn.example.org/videos/clip.mp4", videoWithPoster.getDownloadUrl(com.example.model.DownloadQuality.Q360))
+
+    // 4. Video without poster: previewUrl is empty, NEVER falls back to video file
+    val videoWithoutPoster = MediaItem(
+      id = "vid_1004",
+      title = "Raw Video",
+      actualMediaUrl = "https://cdn.example.org/raw/video.webm",
+      previewUrl = "",
+      mediaType = MediaType.VIDEO,
+      rating = MediaRating.ADULT
+    )
+    assertEquals("", videoWithoutPoster.previewUrl)
+    assertEquals("", videoWithoutPoster.getThumbnailForQuality(ThumbnailQuality.Q360))
+    assertEquals("", videoWithoutPoster.getThumbnailForQuality(ThumbnailQuality.Q720))
+    assertEquals("", videoWithoutPoster.getThumbnailFallbackUrl(ThumbnailQuality.Q720))
+
+    // 5. Media type detection hierarchy
+    assertEquals(MediaType.GIF, MediaApiClient.detectMediaType(fileExtField = "gif"))
+    assertEquals(MediaType.GIF, MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.org/sample.gif"))
+    assertEquals(MediaType.VIDEO, MediaApiClient.detectMediaType(fileExtField = "mp4"))
+    assertEquals(MediaType.VIDEO, MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.org/sample.webm"))
+    assertEquals(MediaType.VIDEO, MediaApiClient.detectMediaType(explicitType = "video/webm"))
+    assertEquals(MediaType.IMAGE, MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.org/sample.jpg"))
+
+    // 6. Rating mapping verification
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("g", isDanbooru = true))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("s", isDanbooru = true))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("q", isDanbooru = true))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("e", isDanbooru = true))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("s", isDanbooru = false))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("safe", isDanbooru = false))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("questionable", isDanbooru = false))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("explicit", isDanbooru = false))
+
+    // 7. Full API JSON parsing verification for image, GIF, and video items
+    val danbooruConfig = MediaSourceConfig.TEMPLATE_DANBOORU
+    val jsonMixedMedia = """
+      [
+        {
+          "id": 101,
+          "file_url": "https://cdn.donmai.us/original/11/22/art.png",
+          "preview_file_url": "https://cdn.donmai.us/180x180/11/22/art.jpg",
+          "large_file_url": "https://cdn.donmai.us/sample/11/22/art.jpg",
+          "file_ext": "png",
+          "rating": "g"
+        },
+        {
+          "id": 102,
+          "file_url": "https://cdn.donmai.us/original/33/44/animation.gif",
+          "preview_file_url": "https://cdn.donmai.us/180x180/33/44/animation.jpg",
+          "large_file_url": "https://cdn.donmai.us/sample/33/44/animation.jpg",
+          "file_ext": "gif",
+          "rating": "s"
+        },
+        {
+          "id": 103,
+          "file_url": "https://cdn.donmai.us/original/55/66/video.mp4",
+          "preview_file_url": "https://cdn.donmai.us/180x180/55/66/video.jpg",
+          "large_file_url": "https://cdn.donmai.us/sample/55/66/video.mp4",
+          "file_ext": "mp4",
+          "rating": "e"
+        }
+      ]
+    """.trimIndent()
+
+    val parsed = apiClient.parseMediaItems(danbooruConfig, jsonMixedMedia)
+    assertEquals(3, parsed.size)
+
+    val parsedImage = parsed[0]
+    assertEquals(MediaType.IMAGE, parsedImage.mediaType)
+    assertEquals(MediaRating.SAFE, parsedImage.rating)
+    assertEquals("https://cdn.donmai.us/original/11/22/art.png", parsedImage.actualMediaUrl)
+    assertEquals("https://cdn.donmai.us/180x180/11/22/art.jpg", parsedImage.previewUrl)
+
+    val parsedGif = parsed[1]
+    assertEquals(MediaType.GIF, parsedGif.mediaType)
+    assertEquals(MediaRating.SUGGESTIVE, parsedGif.rating)
+    assertEquals("https://cdn.donmai.us/original/33/44/animation.gif", parsedGif.actualMediaUrl)
+    assertEquals("https://cdn.donmai.us/180x180/33/44/animation.jpg", parsedGif.previewUrl)
+    assertTrue("GIF actualMediaUrl is animated .gif", parsedGif.actualMediaUrl.endsWith(".gif"))
+    assertTrue("GIF previewUrl is lightweight static image", parsedGif.previewUrl.endsWith(".jpg"))
+
+    val parsedVideo = parsed[2]
+    assertEquals(MediaType.VIDEO, parsedVideo.mediaType)
+    assertEquals(MediaRating.ADULT, parsedVideo.rating)
+    assertEquals("https://cdn.donmai.us/original/55/66/video.mp4", parsedVideo.actualMediaUrl)
+    assertEquals("https://cdn.donmai.us/180x180/55/66/video.jpg", parsedVideo.previewUrl)
+    assertTrue("Video actualMediaUrl is playable .mp4", parsedVideo.actualMediaUrl.endsWith(".mp4"))
+    assertTrue("Video previewUrl is static image poster", parsedVideo.previewUrl.endsWith(".jpg"))
+    assertFalse("Video previewUrl must never be a video", MediaApiClient.isVideoUrl(parsedVideo.previewUrl))
   }
 }
 

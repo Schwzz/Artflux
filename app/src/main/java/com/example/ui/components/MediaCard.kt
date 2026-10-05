@@ -55,6 +55,7 @@ import com.example.ui.theme.MagentaAccent
 import com.example.ui.theme.NeonIndigo
 import com.example.ui.theme.RoseBadge
 import androidx.compose.material3.MaterialTheme
+import com.example.data.MediaApiClient
 import com.example.util.ArtfluxImageLoader
 
 @Composable
@@ -73,9 +74,14 @@ fun MediaCard(
     val isNsfw = item.rating == MediaRating.ADULT || item.rating == MediaRating.SUGGESTIVE
     val shouldBlur = blurNsfw && isNsfw
 
-    // Primary URL selection respecting selected thumbnail quality (360p, 480p, 720p, 1080p)
-    val primaryDisplayUrl = item.getThumbnailForQuality(quality)
-    val fallbackDisplayUrl = item.getThumbnailFallbackUrl(quality)
+    // Primary URL selection respecting deterministic preview contract:
+    // Feed strictly uses static previewUrl; never loads raw video media
+    val primaryDisplayUrl = if (!MediaApiClient.isVideoUrl(item.previewUrl) && item.previewUrl.isNotBlank()) {
+        item.previewUrl
+    } else {
+        item.getThumbnailForQuality(quality).takeIf { !MediaApiClient.isVideoUrl(it) }.orEmpty()
+    }
+    val fallbackDisplayUrl = item.getThumbnailFallbackUrl(quality).takeIf { !MediaApiClient.isVideoUrl(it) }.orEmpty()
 
     var isPrimaryFailed by remember(item.id, quality) { mutableStateOf(false) }
 
@@ -99,7 +105,7 @@ fun MediaCard(
         ) {
             val effectiveDisplayUrl = if (isPrimaryFailed) fallbackDisplayUrl else primaryDisplayUrl
 
-            if (effectiveDisplayUrl.isNotBlank()) {
+            if (effectiveDisplayUrl.isNotBlank() && !MediaApiClient.isVideoUrl(effectiveDisplayUrl)) {
                 // Media Image with optional NSFW blur (No badges, text, or eye icon overlay when blurred)
                 SubcomposeAsyncImage(
                     model = ImageRequest.Builder(context)
@@ -158,7 +164,7 @@ fun MediaCard(
                     }
                 )
             } else {
-                // Clean placeholder state when no image preview is available
+                // Clean placeholder state when no image preview is available (never plays video in feed)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -187,11 +193,11 @@ fun MediaCard(
             }
 
             if (shouldBlur) {
-                // Frosted backdrop overlay for 100% reliable blur and full privacy across all Android versions
+                // Fully opaque privacy overlay for 100% reliable protection (underlying NSFW image is completely obscured)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
+                        .background(MaterialTheme.colorScheme.surface)
                 )
             }
 

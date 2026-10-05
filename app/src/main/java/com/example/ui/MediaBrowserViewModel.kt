@@ -20,6 +20,7 @@ import com.example.model.MediaType
 import com.example.model.Orientation
 import com.example.model.SortOption
 import com.example.model.ThumbnailQuality
+import com.example.util.ArtfluxNetwork
 import com.example.util.QueryBuilder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -676,12 +677,12 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
             MediaType.GIF -> "gif"
             MediaType.VIDEO -> {
                 val fromExt = item.fileExt?.lowercase()?.takeIf { it in listOf("mp4", "webm", "mkv", "mov", "avi") }
-                val fromUrl = item.imageUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it in listOf("mp4", "webm", "mkv", "mov", "avi") }
+                val fromUrl = item.actualMediaUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it in listOf("mp4", "webm", "mkv", "mov", "avi") }
                 fromExt ?: fromUrl ?: "mp4"
             }
             else -> {
                 val fromExt = item.fileExt?.lowercase()?.takeIf { it in listOf("jpg", "jpeg", "png", "webp", "bmp", "gif") }
-                val fromUrl = item.imageUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it in listOf("jpg", "jpeg", "png", "webp", "bmp", "gif") }
+                val fromUrl = item.actualMediaUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it in listOf("jpg", "jpeg", "png", "webp", "bmp", "gif") }
                 fromExt ?: fromUrl ?: "jpg"
             }
         }
@@ -725,21 +726,9 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                 )
                 setAllowedOverMetered(true)
                 setAllowedOverRoaming(true)
-                addRequestHeader(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                )
-                val urlLower = targetUrl.lowercase()
-                when {
-                    urlLower.contains("gelbooru.com") -> addRequestHeader("Referer", "https://gelbooru.com/")
-                    urlLower.contains("danbooru") || urlLower.contains("donmai.us") -> addRequestHeader("Referer", "https://danbooru.donmai.us/")
-                    urlLower.contains("safebooru.org") || urlLower.contains("safebooru") -> addRequestHeader("Referer", "https://safebooru.org/")
-                    urlLower.contains("yande.re") -> addRequestHeader("Referer", "https://yande.re/")
-                    else -> {
-                        uri.host?.let { host ->
-                            addRequestHeader("Referer", "${uri.scheme ?: "https"}://$host/")
-                        }
-                    }
+                val headers = ArtfluxNetwork.getHeadersForUrl(targetUrl)
+                for ((k, v) in headers) {
+                    addRequestHeader(k, v)
                 }
             }
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager

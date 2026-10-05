@@ -106,6 +106,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.TextTertiary
 import com.example.util.ArtfluxImageLoader
+import com.example.util.ArtfluxNetwork
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -169,31 +170,10 @@ fun LightboxViewer(
 
                     val exoPlayer = remember(pageItem.id, isCurrentPage, loopVideo) {
                         if (isCurrentPage) {
-                            val videoUrl = pageItem.imageUrl.lowercase()
-                            val requestHeaders = mutableMapOf<String, String>(
-                                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                            )
-
-                            // Anti-hotlink Referer headers for Booru CDNs (prevents 403 Forbidden)
-                            if (videoUrl.contains("gelbooru.com")) {
-                                requestHeaders["Referer"] = "https://gelbooru.com/"
-                            } else if (videoUrl.contains("danbooru") || videoUrl.contains("donmai.us")) {
-                                requestHeaders["Referer"] = "https://danbooru.donmai.us/"
-                            } else if (videoUrl.contains("safebooru.org") || videoUrl.contains("safebooru")) {
-                                requestHeaders["Referer"] = "https://safebooru.org/"
-                            } else if (videoUrl.contains("yande.re")) {
-                                requestHeaders["Referer"] = "https://yande.re/"
-                            } else {
-                                try {
-                                    val parsed = Uri.parse(pageItem.imageUrl)
-                                    parsed.host?.let { host ->
-                                        requestHeaders["Referer"] = "${parsed.scheme ?: "https"}://$host/"
-                                    }
-                                } catch (_: Exception) {}
-                            }
+                            val requestHeaders = ArtfluxNetwork.getHeadersForUrl(pageItem.actualMediaUrl)
 
                             val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
-                                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                                .setUserAgent(ArtfluxNetwork.DEFAULT_USER_AGENT)
                                 .setAllowCrossProtocolRedirects(true)
                                 .setConnectTimeoutMs(15000)
                                 .setReadTimeoutMs(20000)
@@ -205,7 +185,7 @@ fun LightboxViewer(
                             ExoPlayer.Builder(context)
                                 .setMediaSourceFactory(mediaSourceFactory)
                                 .build().apply {
-                                    val media3Item = Media3Item.fromUri(Uri.parse(pageItem.imageUrl))
+                                    val media3Item = Media3Item.fromUri(Uri.parse(pageItem.actualMediaUrl))
                                     setMediaItem(media3Item)
                                     repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                                     playWhenReady = true
@@ -256,7 +236,7 @@ fun LightboxViewer(
                         contentAlignment = Alignment.Center
                     ) {
                         // Instant preview placeholder while video prepares/buffers
-                        val videoPreviewUrl = pageItem.thumbnailUrl.ifBlank { pageItem.sampleUrl ?: "" }
+                        val videoPreviewUrl = pageItem.previewUrl
                         if (videoPreviewUrl.isNotBlank()) {
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
@@ -361,13 +341,9 @@ fun LightboxViewer(
                     }
                 }
 
-                // Fullscreen URL selection: For images, use sample URL (~1080p) if available to avoid loading giant raw files
-                val fullscreenDisplayUrl = if (pageItem.mediaType == MediaType.GIF) {
-                    pageItem.imageUrl
-                } else {
-                    pageItem.sampleUrl?.takeIf { it.isNotBlank() } ?: pageItem.imageUrl
-                }
-                val previewThumbnailUrl = pageItem.thumbnailUrl.ifBlank { pageItem.sampleUrl ?: pageItem.imageUrl }
+                // Fullscreen URL selection: load actualMediaUrl directly without guessing
+                val fullscreenDisplayUrl = pageItem.actualMediaUrl
+                val previewThumbnailUrl = pageItem.previewUrl
 
                 Box(
                     modifier = Modifier
@@ -578,7 +554,7 @@ fun LightboxViewer(
                             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_SUBJECT, currentItem.title)
-                                putExtra(Intent.EXTRA_TEXT, "${currentItem.title} - ${currentItem.imageUrl}")
+                                putExtra(Intent.EXTRA_TEXT, "${currentItem.title} - ${currentItem.actualMediaUrl}")
                             }
                             context.startActivity(Intent.createChooser(sendIntent, "Share Media Link"))
                         },
