@@ -370,6 +370,7 @@ fun MediaBrowserScreen(
                 currentIndex = index,
                 totalCount = lightboxItems.size,
                 itemsList = lightboxItems,
+                loopVideo = loopVideo,
                 onIndexChanged = { newIdx -> viewModel.setLightboxIndex(newIdx) },
                 onPrevious = { viewModel.previousLightboxItem() },
                 onNext = { viewModel.nextLightboxItem() },

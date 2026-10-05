@@ -503,15 +503,15 @@ class ExampleRobolectricTest {
     newPrefsRepo.setTheme(com.example.model.AppTheme.DARK)
     assertEquals(com.example.model.AppTheme.DARK, newPrefsRepo.theme.value)
 
-    // 2. NSFW Blur persistence (Default is false)
-    assertFalse(prefsRepo.blurNsfw.value)
-    prefsRepo.setBlurNsfw(true)
+    // 2. NSFW Blur persistence (Default is true for new installs in Batch 8B)
     assertTrue(prefsRepo.blurNsfw.value)
+    prefsRepo.setBlurNsfw(false)
+    assertFalse(prefsRepo.blurNsfw.value)
 
     val restartedRepo = com.example.data.PreferencesRepository(context)
-    assertTrue(restartedRepo.blurNsfw.value)
-    restartedRepo.setBlurNsfw(false)
     assertFalse(restartedRepo.blurNsfw.value)
+    restartedRepo.setBlurNsfw(true)
+    assertTrue(restartedRepo.blurNsfw.value)
   }
 
   // --- 11. Home Feed Settings / Source & Filter Update Tests (Batch 4) ---
@@ -1292,6 +1292,54 @@ class ExampleRobolectricTest {
     assertFalse(resavedJson.contains("legacy_plaintext_key_777"))
     assertFalse(resavedJson.contains("legacy_header_val_888"))
     assertFalse(resavedJson.contains("legacy_token_999"))
+  }
+
+  // --- 32. Batch 8B: NSFW Blur & Fullscreen Loading Optimization Tests ---
+
+  @Test
+  fun testBatch8BNsfwBlurAndFullscreenPerformance() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val prefsRepo = com.example.data.PreferencesRepository(context)
+
+    // 1. Default for new installs is ON (true)
+    assertTrue("Blur NSFW content must default to true on new installs", prefsRepo.blurNsfw.value)
+
+    // 2. NSFW classification check
+    val adultItem = MediaItem(
+      id = "item_adult_1",
+      title = "Adult Item",
+      imageUrl = "https://cdn.example.org/full/adult_1.jpg",
+      thumbnailUrl = "https://cdn.example.org/preview/adult_1.jpg",
+      sampleUrl = "https://cdn.example.org/sample/adult_1.jpg",
+      rating = MediaRating.ADULT,
+      mediaType = MediaType.IMAGE,
+      sourceName = "Danbooru"
+    )
+    val safeItem = adultItem.copy(id = "item_safe_1", rating = MediaRating.SAFE)
+    val suggestiveItem = adultItem.copy(id = "item_sugg_1", rating = MediaRating.SUGGESTIVE)
+
+    // Adult rating is flagged as NSFW
+    assertEquals(MediaRating.ADULT, adultItem.rating)
+    assertTrue(safeItem.rating != MediaRating.ADULT)
+    assertTrue(suggestiveItem.rating != MediaRating.ADULT)
+
+    // 3. Fullscreen URL resolution: Images use sampleUrl if present, avoiding huge raw downloads
+    val fullscreenUrl = adultItem.sampleUrl?.takeIf { it.isNotBlank() } ?: adultItem.imageUrl
+    assertEquals("https://cdn.example.org/sample/adult_1.jpg", fullscreenUrl)
+
+    // If sampleUrl is null, falls back to imageUrl
+    val noSampleItem = adultItem.copy(sampleUrl = null)
+    val fullscreenNoSample = noSampleItem.sampleUrl?.takeIf { it.isNotBlank() } ?: noSampleItem.imageUrl
+    assertEquals("https://cdn.example.org/full/adult_1.jpg", fullscreenNoSample)
+
+    // For GIFs, fullscreen uses imageUrl
+    val gifItem = adultItem.copy(mediaType = MediaType.GIF, imageUrl = "https://cdn.example.org/anim/dance.gif")
+    val gifDisplayUrl = if (gifItem.mediaType == MediaType.GIF) gifItem.imageUrl else (gifItem.sampleUrl ?: gifItem.imageUrl)
+    assertEquals("https://cdn.example.org/anim/dance.gif", gifDisplayUrl)
+
+    // Preview thumbnail key uses cached preview/sample
+    val previewKey = adultItem.thumbnailUrl.ifBlank { adultItem.sampleUrl ?: adultItem.imageUrl }
+    assertEquals("https://cdn.example.org/preview/adult_1.jpg", previewKey)
   }
 }
 

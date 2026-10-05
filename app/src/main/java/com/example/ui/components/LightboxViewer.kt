@@ -81,6 +81,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.model.MediaItem
@@ -109,6 +110,7 @@ fun LightboxViewer(
     currentIndex: Int,
     totalCount: Int,
     itemsList: List<MediaItem> = listOf(item),
+    loopVideo: Boolean = true,
     onIndexChanged: (Int) -> Unit = {},
     onPrevious: () -> Unit = {},
     onNext: () -> Unit = {},
@@ -159,12 +161,12 @@ fun LightboxViewer(
                     val lifecycleOwner = LocalLifecycleOwner.current
                     val isCurrentPage = pagerState.currentPage == pageIndex
 
-                    val exoPlayer = remember(pageItem.id, isCurrentPage) {
+                    val exoPlayer = remember(pageItem.id, isCurrentPage, loopVideo) {
                         if (isCurrentPage) {
                             ExoPlayer.Builder(context).build().apply {
                                 val media3Item = Media3Item.fromUri(Uri.parse(pageItem.imageUrl))
                                 setMediaItem(media3Item)
-                                repeatMode = Player.REPEAT_MODE_ONE
+                                repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                                 playWhenReady = true
                                 prepare()
                             }
@@ -201,6 +203,21 @@ fun LightboxViewer(
                             .padding(top = 60.dp, bottom = 80.dp, start = 8.dp, end = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Instant preview placeholder while video prepares/buffers
+                        val videoPreviewUrl = pageItem.thumbnailUrl.ifBlank { pageItem.sampleUrl ?: "" }
+                        if (videoPreviewUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(videoPreviewUrl)
+                                    .crossfade(false)
+                                    .build(),
+                                imageLoader = ArtfluxImageLoader.get(context),
+                                contentDescription = pageItem.title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
                         if (exoPlayer != null) {
                             AndroidView(
                                 factory = { ctx ->
@@ -209,6 +226,7 @@ fun LightboxViewer(
                                         useController = true
                                         setShowNextButton(false)
                                         setShowPreviousButton(false)
+                                        setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                                         layoutParams = FrameLayout.LayoutParams(
                                             ViewGroup.LayoutParams.MATCH_PARENT,
                                             ViewGroup.LayoutParams.MATCH_PARENT
@@ -220,17 +238,6 @@ fun LightboxViewer(
                                         playerView.player = exoPlayer
                                     }
                                 },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            // Placeholder while not selected
-                            SubcomposeAsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(pageItem.thumbnailUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = pageItem.title,
-                                contentScale = ContentScale.Fit,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -247,6 +254,14 @@ fun LightboxViewer(
                         activeZoomScale = scale
                     }
                 }
+
+                // Fullscreen URL selection: For images, use sample URL (~1080p) if available to avoid loading giant raw files
+                val fullscreenDisplayUrl = if (pageItem.mediaType == MediaType.GIF) {
+                    pageItem.imageUrl
+                } else {
+                    pageItem.sampleUrl?.takeIf { it.isNotBlank() } ?: pageItem.imageUrl
+                }
+                val previewThumbnailUrl = pageItem.thumbnailUrl.ifBlank { pageItem.sampleUrl ?: pageItem.imageUrl }
 
                 Box(
                     modifier = Modifier
@@ -314,8 +329,9 @@ fun LightboxViewer(
                 ) {
                     SubcomposeAsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(pageItem.imageUrl)
+                            .data(fullscreenDisplayUrl)
                             .crossfade(true)
+                            .placeholderMemoryCacheKey(previewThumbnailUrl)
                             .build(),
                         imageLoader = ArtfluxImageLoader.get(context),
                         contentDescription = pageItem.title,
@@ -334,9 +350,23 @@ fun LightboxViewer(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
+                                // Instant preview placeholder from already cached feed thumbnail/sample
+                                if (previewThumbnailUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(previewThumbnailUrl)
+                                            .crossfade(false)
+                                            .build(),
+                                        imageLoader = ArtfluxImageLoader.get(context),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                                 CircularProgressIndicator(
                                     color = NeonIndigoLight,
-                                    strokeWidth = 3.dp
+                                    strokeWidth = 3.dp,
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }

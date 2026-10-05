@@ -30,7 +30,7 @@ class PreferencesRepository(context: Context) {
     private val _theme = MutableStateFlow(initialTheme)
     val theme: StateFlow<AppTheme> = _theme.asStateFlow()
 
-    private val _blurNsfw = MutableStateFlow(prefs.getBoolean(KEY_BLUR_NSFW, false))
+    private val _blurNsfw = MutableStateFlow(prefs.getBoolean(KEY_BLUR_NSFW, true))
     val blurNsfw: StateFlow<Boolean> = _blurNsfw.asStateFlow()
 
     private val _thumbnailQuality = MutableStateFlow(
