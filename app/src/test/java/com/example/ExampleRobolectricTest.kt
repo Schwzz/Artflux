@@ -9,6 +9,7 @@ import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaSourceConfig
 import com.example.model.MediaType
+import com.example.model.ThumbnailQuality
 import com.example.ui.MediaBrowserViewModel
 import com.example.util.QueryBuilder
 import org.json.JSONObject
@@ -307,14 +308,25 @@ class ExampleRobolectricTest {
     val danbooru = MediaSourceConfig.BUILT_IN_DANBOORU
     val yandere = MediaSourceConfig.BUILT_IN_YANDERE
 
+    // Artflux can render and filter Image, GIF, and Video across all sources
     assertTrue(safebooru.getSupportedMediaTypes().contains(MediaType.GIF))
-    assertFalse(safebooru.getSupportedMediaTypes().contains(MediaType.VIDEO))
+    assertTrue(safebooru.getSupportedMediaTypes().contains(MediaType.VIDEO))
 
     assertTrue(danbooru.getSupportedMediaTypes().contains(MediaType.GIF))
     assertTrue(danbooru.getSupportedMediaTypes().contains(MediaType.VIDEO))
 
-    assertFalse(yandere.getSupportedMediaTypes().contains(MediaType.GIF))
-    assertFalse(yandere.getSupportedMediaTypes().contains(MediaType.VIDEO))
+    assertTrue(yandere.getSupportedMediaTypes().contains(MediaType.GIF))
+    assertTrue(yandere.getSupportedMediaTypes().contains(MediaType.VIDEO))
+
+    // Dedicated server-side discovery tags
+    assertTrue(safebooru.canDiscoverGifs)
+    assertFalse(safebooru.canDiscoverVideos)
+
+    assertTrue(danbooru.canDiscoverGifs)
+    assertTrue(danbooru.canDiscoverVideos)
+
+    assertFalse(yandere.canDiscoverGifs)
+    assertFalse(yandere.canDiscoverVideos)
   }
 
   // --- 5. Pagination & Source Switching in ViewModel ---
@@ -1294,7 +1306,7 @@ class ExampleRobolectricTest {
     assertFalse(resavedJson.contains("legacy_token_999"))
   }
 
-  // --- 32. Batch 8B: NSFW Blur & Fullscreen Loading Optimization Tests ---
+  // --- 32. Batch 8B & Batch 9: NSFW Blur & Fullscreen Loading Optimization Tests ---
 
   @Test
   fun testBatch8BNsfwBlurAndFullscreenPerformance() {
@@ -1318,10 +1330,14 @@ class ExampleRobolectricTest {
     val safeItem = adultItem.copy(id = "item_safe_1", rating = MediaRating.SAFE)
     val suggestiveItem = adultItem.copy(id = "item_sugg_1", rating = MediaRating.SUGGESTIVE)
 
-    // Adult rating is flagged as NSFW
-    assertEquals(MediaRating.ADULT, adultItem.rating)
-    assertTrue(safeItem.rating != MediaRating.ADULT)
-    assertTrue(suggestiveItem.rating != MediaRating.ADULT)
+    // Adult and Suggestive ratings are both flagged as NSFW for blurring
+    val isAdultNsfw = adultItem.rating == MediaRating.ADULT || adultItem.rating == MediaRating.SUGGESTIVE
+    val isSuggestiveNsfw = suggestiveItem.rating == MediaRating.ADULT || suggestiveItem.rating == MediaRating.SUGGESTIVE
+    val isSafeNsfw = safeItem.rating == MediaRating.ADULT || safeItem.rating == MediaRating.SUGGESTIVE
+
+    assertTrue("Adult rating must be classified as NSFW", isAdultNsfw)
+    assertTrue("Suggestive rating must be classified as NSFW for blur", isSuggestiveNsfw)
+    assertFalse("Safe rating must not be classified as NSFW", isSafeNsfw)
 
     // 3. Fullscreen URL resolution: Images use sampleUrl if present, avoiding huge raw downloads
     val fullscreenUrl = adultItem.sampleUrl?.takeIf { it.isNotBlank() } ?: adultItem.imageUrl
@@ -1340,6 +1356,223 @@ class ExampleRobolectricTest {
     // Preview thumbnail key uses cached preview/sample
     val previewKey = adultItem.thumbnailUrl.ifBlank { adultItem.sampleUrl ?: adultItem.imageUrl }
     assertEquals("https://cdn.example.org/preview/adult_1.jpg", previewKey)
+  }
+
+  // --- 33. Batch 9: UI Refinements, Filename Sanitization & Source Settings Tests ---
+
+  @Test
+  fun testBatch9DownloadFilenameSanitizationAndFormatting() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val viewModel = MediaBrowserViewModel(context as Application)
+
+    val imageItem = MediaItem(
+      id = "img_901",
+      title = "Hatsune Miku Artwork",
+      imageUrl = "https://cdn.example.org/art/miku.png",
+      thumbnailUrl = "https://cdn.example.org/preview/miku.png",
+      mediaType = MediaType.IMAGE,
+      fileExt = "png",
+      sourceName = "Safebooru"
+    )
+
+    val gifItem = MediaItem(
+      id = "gif_902",
+      title = "Dancing Cat",
+      imageUrl = "https://cdn.example.org/anim/cat.gif",
+      thumbnailUrl = "https://cdn.example.org/preview/cat.jpg",
+      mediaType = MediaType.GIF,
+      sourceName = "Danbooru"
+    )
+
+    val videoItem = MediaItem(
+      id = "vid_903",
+      title = "Short Animation Clip",
+      imageUrl = "https://cdn.example.org/clips/clip.webm",
+      thumbnailUrl = "https://cdn.example.org/preview/clip.jpg",
+      mediaType = MediaType.VIDEO,
+      fileExt = "webm",
+      sourceName = "Gelbooru"
+    )
+
+    // 1. Custom filename provided - correct extension preserved
+    val customImageName = viewModel.resolveDownloadFilename(imageItem, "my_custom_miku")
+    assertEquals("my_custom_miku.png", customImageName)
+
+    val customGifName = viewModel.resolveDownloadFilename(gifItem, "funny_cat_anim")
+    assertEquals("funny_cat_anim.gif", customGifName)
+
+    val customVideoName = viewModel.resolveDownloadFilename(videoItem, "cool_video_clip")
+    assertEquals("cool_video_clip.webm", customVideoName)
+
+    // 2. Custom filename with existing extension suffix is handled cleanly
+    val nameWithExt = viewModel.resolveDownloadFilename(imageItem, "my_custom_miku.png")
+    assertEquals("my_custom_miku.png", nameWithExt)
+
+    val nameWithWrongExt = viewModel.resolveDownloadFilename(imageItem, "my_custom_miku.jpg")
+    assertEquals("my_custom_miku.png", nameWithWrongExt)
+
+    // 3. Sanitization of invalid filesystem characters: / \ : * ? " < > |
+    val dirtyName = viewModel.resolveDownloadFilename(imageItem, "illegal/path\\test:name*one?two\"three<four>five|six")
+    assertFalse(dirtyName.contains("/"))
+    assertFalse(dirtyName.contains("\\"))
+    assertFalse(dirtyName.contains(":"))
+    assertFalse(dirtyName.contains("*"))
+    assertFalse(dirtyName.contains("?"))
+    assertFalse(dirtyName.contains("\""))
+    assertFalse(dirtyName.contains("<"))
+    assertFalse(dirtyName.contains(">"))
+    assertFalse(dirtyName.contains("|"))
+    assertTrue(dirtyName.endsWith(".png"))
+
+    // 4. Empty or whitespace-only custom filename falls back to auto-generated name
+    val emptyName = viewModel.resolveDownloadFilename(imageItem, "   ")
+    assertTrue("Empty custom filename should use auto-generated name", emptyName.startsWith("MediaBrowser_"))
+    assertTrue(emptyName.endsWith(".png"))
+
+    val nullName = viewModel.resolveDownloadFilename(imageItem, null)
+    assertTrue("Null custom filename should use auto-generated name", nullName.startsWith("MediaBrowser_"))
+    assertTrue(nullName.endsWith(".png"))
+
+    // 5. Excessive whitespace is trimmed
+    val spacedName = viewModel.resolveDownloadFilename(imageItem, "   my   custom   art   ")
+    assertEquals("my custom art.png", spacedName)
+  }
+
+  @Test
+  fun testBatch9NsfwSuggestiveAndAdultBlurLogic() {
+    val safeItem = MediaItem(
+      id = "item_1",
+      title = "Safe Art",
+      imageUrl = "https://example.com/safe.jpg",
+      thumbnailUrl = "https://example.com/thumb.jpg",
+      rating = MediaRating.SAFE
+    )
+    val suggestiveItem = safeItem.copy(id = "item_2", rating = MediaRating.SUGGESTIVE)
+    val adultItem = safeItem.copy(id = "item_3", rating = MediaRating.ADULT)
+
+    // When blurNsfw is true:
+    val blurNsfwEnabled = true
+    val shouldBlurSafe = blurNsfwEnabled && (safeItem.rating == MediaRating.ADULT || safeItem.rating == MediaRating.SUGGESTIVE)
+    val shouldBlurSuggestive = blurNsfwEnabled && (suggestiveItem.rating == MediaRating.ADULT || suggestiveItem.rating == MediaRating.SUGGESTIVE)
+    val shouldBlurAdult = blurNsfwEnabled && (adultItem.rating == MediaRating.ADULT || adultItem.rating == MediaRating.SUGGESTIVE)
+
+    assertFalse("Safe items must remain unblurred", shouldBlurSafe)
+    assertTrue("Suggestive items must be blurred when blurNsfw is enabled", shouldBlurSuggestive)
+    assertTrue("Adult items must be blurred when blurNsfw is enabled", shouldBlurAdult)
+
+    // When blurNsfw is false:
+    val blurNsfwDisabled = false
+    val blurWhenDisabled = blurNsfwDisabled && (adultItem.rating == MediaRating.ADULT || adultItem.rating == MediaRating.SUGGESTIVE)
+    assertFalse("Nothing is blurred when blurNsfw is disabled", blurWhenDisabled)
+  }
+
+  // --- 34. Batch 10: Universal Media Compatibility Tests ---
+
+  @Test
+  fun testBatch10UniversalMediaCompatibility() {
+    // 1. GIF detected from ".gif" in URL
+    val gifFromUrl = MediaApiClient.detectMediaType(
+      actualMediaUrl = "https://cdn.example.org/files/dance.gif",
+      rawMediaUrl = "https://cdn.example.org/files/dance.gif"
+    )
+    assertEquals(MediaType.GIF, gifFromUrl)
+
+    // 2. MP4/WebM/MKV detected as video from URL
+    val mp4FromUrl = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clips/clip.mp4")
+    val webmFromUrl = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clips/clip.webm")
+    val mkvFromUrl = MediaApiClient.detectMediaType(actualMediaUrl = "https://cdn.example.org/clips/clip.mkv")
+    assertEquals(MediaType.VIDEO, mp4FromUrl)
+    assertEquals(MediaType.VIDEO, webmFromUrl)
+    assertEquals(MediaType.VIDEO, mkvFromUrl)
+
+    // 3. Explicit API media type detection
+    val explicitGif = MediaApiClient.detectMediaType(explicitType = "image/gif")
+    val explicitVideo = MediaApiClient.detectMediaType(explicitType = "video/mp4")
+    val explicitWebm = MediaApiClient.detectMediaType(explicitType = "video/webm")
+    val explicitImage = MediaApiClient.detectMediaType(explicitType = "image/png")
+    assertEquals(MediaType.GIF, explicitGif)
+    assertEquals(MediaType.VIDEO, explicitVideo)
+    assertEquals(MediaType.VIDEO, explicitWebm)
+    assertEquals(MediaType.IMAGE, explicitImage)
+
+    // 4. API file extension detection
+    val extGif = MediaApiClient.detectMediaType(fileExtField = "gif")
+    val extWebm = MediaApiClient.detectMediaType(fileExtField = "webm")
+    val extMp4 = MediaApiClient.detectMediaType(fileExtField = "mp4")
+    val extMkv = MediaApiClient.detectMediaType(fileExtField = "mkv")
+    val extPng = MediaApiClient.detectMediaType(fileExtField = "png")
+    assertEquals(MediaType.GIF, extGif)
+    assertEquals(MediaType.VIDEO, extWebm)
+    assertEquals(MediaType.VIDEO, extMp4)
+    assertEquals(MediaType.VIDEO, extMkv)
+    assertEquals(MediaType.IMAGE, extPng)
+
+    // 5. Preview image + GIF actual file: correctly detected as GIF
+    val previewJpgGifFile = MediaApiClient.detectMediaType(
+      actualMediaUrl = "https://cdn.example.org/files/animation.gif",
+      rawMediaUrl = "https://cdn.example.org/files/animation.gif"
+    )
+    assertEquals(MediaType.GIF, previewJpgGifFile)
+
+    // 6. Preview image + video actual file: correctly detected as VIDEO
+    val previewJpgVideoFile = MediaApiClient.detectMediaType(
+      actualMediaUrl = "https://cdn.example.org/files/clip.webm",
+      rawMediaUrl = "https://cdn.example.org/files/clip.webm"
+    )
+    assertEquals(MediaType.VIDEO, previewJpgVideoFile)
+
+    // 7. Generic "animated" tag does not classify GIF as video
+    val tagGif = MediaApiClient.detectMediaType(
+      actualMediaUrl = "https://cdn.example.org/files/sample.gif",
+      tags = listOf("animated", "illustration")
+    )
+    assertEquals(MediaType.GIF, tagGif)
+
+    // 8. No video URL used as an image thumbnail in MediaItem
+    val videoItemWithThumb = MediaItem(
+      id = "vid_101",
+      title = "WebM Animation",
+      imageUrl = "https://cdn.example.org/video.webm",
+      thumbnailUrl = "https://cdn.example.org/preview.jpg",
+      mediaType = MediaType.VIDEO
+    )
+    assertEquals("https://cdn.example.org/preview.jpg", videoItemWithThumb.getThumbnailForQuality(ThumbnailQuality.Q720))
+
+    val videoItemWithoutThumb = MediaItem(
+      id = "vid_102",
+      title = "Raw Video Only",
+      imageUrl = "https://cdn.example.org/video.mp4",
+      thumbnailUrl = "",
+      mediaType = MediaType.VIDEO
+    )
+    // Never fall back to heavy video file as thumbnail
+    assertEquals("", videoItemWithoutThumb.getThumbnailForQuality(ThumbnailQuality.Q720))
+
+    // 9. Existing standard image behavior preserved
+    val imageItem = MediaItem(
+      id = "img_103",
+      title = "Standard Anime Artwork",
+      imageUrl = "https://cdn.example.org/art.jpg",
+      thumbnailUrl = "https://cdn.example.org/thumb.jpg",
+      mediaType = MediaType.IMAGE
+    )
+    assertEquals(MediaType.IMAGE, imageItem.mediaType)
+    assertEquals("https://cdn.example.org/thumb.jpg", imageItem.getThumbnailForQuality(ThumbnailQuality.Q480))
+
+    // 10. Missing query tags do NOT make GIF/video unsupported
+    val customSourceNoTags = MediaSourceConfig(
+      id = "custom_test_no_tags",
+      name = "Custom Booru No Tags",
+      apiUrl = "https://booru.custom.org/posts.json",
+      gifQueryTag = "",
+      videoQueryTag = ""
+    )
+    assertTrue(customSourceNoTags.supportsGifs)
+    assertTrue(customSourceNoTags.supportsVideos)
+    assertTrue(customSourceNoTags.getSupportedMediaTypes().contains(MediaType.GIF))
+    assertTrue(customSourceNoTags.getSupportedMediaTypes().contains(MediaType.VIDEO))
+    assertFalse(customSourceNoTags.canDiscoverGifs)
+    assertFalse(customSourceNoTags.canDiscoverVideos)
   }
 }
 

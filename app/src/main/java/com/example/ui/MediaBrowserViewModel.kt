@@ -594,6 +594,16 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _isDiagnosing.value = false
     }
 
+    fun duplicateSource(source: MediaSourceConfig) {
+        val newSource = source.copy(
+            id = "custom_${System.currentTimeMillis()}_${(1000..9999).random()}",
+            name = "${source.name} (Copy)",
+            isBuiltIn = false
+        )
+        repository.addSource(newSource)
+        _snackbarMessage.value = "Created copy of '${source.name}'"
+    }
+
     fun exportSourceConfig(source: MediaSourceConfig): String {
         val json = source.toExportJson(sanitizeSecrets = true)
         _snackbarMessage.value = "Sanitized config for '${source.name}' copied to clipboard!"
@@ -653,18 +663,57 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         promptDownload(item)
     }
 
-    fun downloadMediaWithQuality(item: MediaItem, quality: DownloadQuality) {
+    fun sanitizeFilename(name: String): String {
+        val sanitized = name.replace(Regex("[/\\\\:*?\"<>|\\x00-\\x1F]"), "_")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trimEnd('.')
+        return sanitized.take(100).trim()
+    }
+
+    fun resolveDownloadFilename(item: MediaItem, customFilename: String?): String {
+        val extension = when (item.mediaType) {
+            MediaType.GIF -> "gif"
+            MediaType.VIDEO -> {
+                val fromExt = item.fileExt?.lowercase()?.takeIf { it in listOf("mp4", "webm", "mkv", "mov", "avi") }
+                val fromUrl = item.imageUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it in listOf("mp4", "webm", "mkv", "mov", "avi") }
+                fromExt ?: fromUrl ?: "mp4"
+            }
+            else -> {
+                val fromExt = item.fileExt?.lowercase()?.takeIf { it in listOf("jpg", "jpeg", "png", "webp", "bmp", "gif") }
+                val fromUrl = item.imageUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it in listOf("jpg", "jpeg", "png", "webp", "bmp", "gif") }
+                fromExt ?: fromUrl ?: "jpg"
+            }
+        }
+
+        val cleanName = customFilename?.let { sanitizeFilename(it) }?.takeIf { it.isNotBlank() }
+        return if (cleanName != null) {
+            val knownExtensions = listOf("jpg", "jpeg", "png", "webp", "gif", "mp4", "webm", "mkv", "mov", "bmp", "avi")
+            var baseName: String = cleanName
+            for (ext in knownExtensions) {
+                if (baseName.endsWith(".$ext", ignoreCase = true)) {
+                    baseName = baseName.substring(0, baseName.length - (ext.length + 1))
+                    break
+                }
+            }
+            baseName = baseName.trim().trimEnd('.')
+            if (baseName.isBlank()) {
+                baseName = "media_${item.id}"
+            }
+            "$baseName.$extension"
+        } else {
+            "MediaBrowser_${System.currentTimeMillis()}.$extension"
+        }
+    }
+
+    fun downloadMediaWithQuality(item: MediaItem, quality: DownloadQuality, customFilename: String? = null) {
         _downloadTargetItem.value = null
         try {
             val context = getApplication<Application>().applicationContext
             val targetUrl = item.getDownloadUrl(quality)
             val uri = Uri.parse(targetUrl)
 
-            val extension = when (item.mediaType) {
-                MediaType.GIF -> "gif"
-                MediaType.VIDEO -> item.fileExt?.takeIf { it in listOf("mp4", "webm", "mkv", "mov") } ?: "mp4"
-                else -> item.fileExt ?: "jpg"
-            }
+            val destinationFilename = resolveDownloadFilename(item, customFilename)
 
             val request = DownloadManager.Request(uri).apply {
                 setTitle("${item.title} [${quality.label}]")
@@ -672,7 +721,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_PICTURES,
-                    "MediaBrowser_${System.currentTimeMillis()}.$extension"
+                    destinationFilename
                 )
                 setAllowedOverMetered(true)
                 setAllowedOverRoaming(true)

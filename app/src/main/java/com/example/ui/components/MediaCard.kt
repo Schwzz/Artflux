@@ -70,7 +70,7 @@ fun MediaCard(
     val context = LocalContext.current
     val imageLoader = ArtfluxImageLoader.get(context)
 
-    val isNsfw = item.rating == MediaRating.ADULT
+    val isNsfw = item.rating == MediaRating.ADULT || item.rating == MediaRating.SUGGESTIVE
     val shouldBlur = blurNsfw && isNsfw
 
     // Primary URL selection respecting selected thumbnail quality (360p, 480p, 720p, 1080p)

@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
@@ -50,6 +51,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -274,6 +277,7 @@ fun MediaBrowserScreen(
                         onLoopVideoChange = { viewModel.setLoopVideoPlayback(it) },
                         onAddSourceClick = { viewModel.openAddSourceDialog(null) },
                         onEditSource = { viewModel.openAddSourceDialog(it) },
+                        onCopySource = { viewModel.duplicateSource(it) },
                         onTestSource = { viewModel.openSourceDiagnostics(it) },
                         onExportSource = { source ->
                             val json = viewModel.exportSourceConfig(source)
@@ -292,8 +296,8 @@ fun MediaBrowserScreen(
     downloadTargetItem?.let { targetItem ->
         DownloadConfigDialog(
             item = targetItem,
-            onConfirm = { quality ->
-                viewModel.downloadMediaWithQuality(targetItem, quality)
+            onConfirm = { quality, customFilename ->
+                viewModel.downloadMediaWithQuality(targetItem, quality, customFilename)
             },
             onDismiss = {
                 viewModel.dismissDownloadPrompt()
@@ -635,27 +639,30 @@ fun SearchScreen(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Search & Filter Header (Clean, Consolidated)
-        Column(
+        // Search & Filter Header (Clean, Aligned Single Row)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Top Row: Collapsible Search Input / Search Trigger
+            // Search Input / Trigger taking weight(1f)
             if (isSearchExpanded) {
                 OutlinedTextField(
                     value = searchState.searchQuery,
                     onValueChange = onQueryChange,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
+                        .height(48.dp)
                         .focusRequester(focusRequester)
                         .testTag("search_text_input"),
                     placeholder = {
                         Text(
-                            text = "Search tags, artists, concepts...",
+                            text = "Search tags, artists...",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     },
                     leadingIcon = {
@@ -663,7 +670,7 @@ fun SearchScreen(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
                             tint = NeonIndigoLight,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     },
                     trailingIcon = {
@@ -674,7 +681,7 @@ fun SearchScreen(
                                         onQueryChange("")
                                         onSearch()
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(28.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Clear,
@@ -689,7 +696,7 @@ fun SearchScreen(
                                     focusManager.clearFocus()
                                     isSearchExpanded = false
                                 },
-                                modifier = Modifier.size(32.dp)
+                                modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Clear,
@@ -723,13 +730,13 @@ fun SearchScreen(
             } else {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
+                        .height(48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                         .clickable { isSearchExpanded = true }
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                        .testTag("collapsed_search_trigger"),
+                        .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -781,80 +788,35 @@ fun SearchScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Second Row: Source Selector + Consolidated Filter Button (Matching Height & Vertically Aligned)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // Consolidated Filter Action Button aligned beside search bar
+            Button(
+                onClick = { isFilterSheetOpen = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                ),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                modifier = Modifier
+                    .height(48.dp)
+                    .testTag("search_filter_button")
             ) {
-                // Source Selector (with clear dropdown icon)
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
-                        .clickable(onClick = onOpenPicker)
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(verticalArrangement = Arrangement.Center) {
-                        Text(
-                            text = "SOURCE",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        )
-                        Text(
-                            text = searchState.activeSource.name,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "Select source",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                // Consolidated Filter Action
-                Button(
-                    onClick = { isFilterSheetOpen = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                    ),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    modifier = Modifier
-                        .height(44.dp)
-                        .testTag("search_filter_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FilterList,
-                        contentDescription = "Open filters",
-                        tint = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (searchState.filterState.activeFilterCount > 0) "Filter (${searchState.filterState.activeFilterCount})" else "Filter",
-                        color = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Open filters",
+                    tint = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (searchState.filterState.activeFilterCount > 0) "Filter (${searchState.filterState.activeFilterCount})" else "Filter",
+                    color = if (searchState.filterState.activeFilterCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
 
@@ -939,10 +901,14 @@ fun SearchScreen(
     // Consolidated Search Filter Sheet
     if (isFilterSheetOpen) {
         SearchFilterSheet(
+            sources = sources,
             activeSource = searchState.activeSource,
             filterState = searchState.filterState,
             currentQuery = searchState.searchQuery,
-            onApply = { newFilter, newQuery ->
+            onApply = { newSource, newFilter, newQuery ->
+                if (newSource.id != searchState.activeSource.id) {
+                    onSelectSource(newSource)
+                }
                 onFilterChange(newFilter)
                 if (newQuery != searchState.searchQuery) {
                     onQueryChange(newQuery)
@@ -958,14 +924,16 @@ fun SearchScreen(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchFilterSheet(
+    sources: List<MediaSourceConfig>,
     activeSource: MediaSourceConfig,
     filterState: FilterState,
     currentQuery: String,
-    onApply: (FilterState, String) -> Unit,
+    onApply: (MediaSourceConfig, FilterState, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val supportedTypes = remember(activeSource) { activeSource.getSupportedMediaTypes() }
-    var selectedType by remember {
+    var selectedSource by remember { mutableStateOf(activeSource) }
+    val supportedTypes = remember(selectedSource) { selectedSource.getSupportedMediaTypes() }
+    var selectedType by remember(selectedSource) {
         mutableStateOf(if (filterState.mediaType in supportedTypes) filterState.mediaType else MediaType.ALL)
     }
     var selectedRating by remember { mutableStateOf(filterState.rating) }
@@ -998,6 +966,7 @@ fun SearchFilterSheet(
                 )
                 TextButton(
                     onClick = {
+                        selectedSource = MediaSourceConfig.BUILT_IN_SAFEBOORU
                         selectedType = MediaType.ALL
                         selectedRating = MediaRating.ALL
                         selectedSort = SortOption.LATEST
@@ -1009,6 +978,43 @@ fun SearchFilterSheet(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
+
+            // Source Selector Section inside Search Filter Sheet
+            FilterSectionHeader(title = "Source")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                sources.forEach { source ->
+                    val isSelected = selectedSource.id == source.id
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                            .clickable {
+                                selectedSource = source
+                                val newSupported = source.getSupportedMediaTypes()
+                                if (selectedType !in newSupported) {
+                                    selectedType = MediaType.ALL
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("filter_source_${source.id}")
+                    ) {
+                        Text(
+                            text = source.name,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Media Type Section
             FilterSectionHeader(title = "Media Type")
@@ -1138,6 +1144,7 @@ fun SearchFilterSheet(
             Button(
                 onClick = {
                     onApply(
+                        selectedSource,
                         filterState.copy(
                             mediaType = selectedType,
                             rating = selectedRating,
@@ -1216,36 +1223,94 @@ fun HomeFeedSettingsSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Source Selector Section
+            // Source Selector Dropdown Menu
             FilterSectionHeader(title = "Source")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            var isSourceDropdownExpanded by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                sources.forEach { source ->
-                    val isSelected = selectedSource.id == source.id
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                            .clickable {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+                        .clickable { isSourceDropdownExpanded = true }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .testTag("home_source_dropdown_anchor"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = selectedSource.name,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (selectedSource.isBuiltIn) "Built-in Source" else "Custom Source (${selectedSource.apiUrl})",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = "Select source",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = isSourceDropdownExpanded,
+                    onDismissRequest = { isSourceDropdownExpanded = false },
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .testTag("home_source_dropdown_menu")
+                ) {
+                    sources.forEach { source ->
+                        val isSelected = selectedSource.id == source.id
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = source.name,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 13.sp
+                                        )
+                                        Text(
+                                            text = if (source.isBuiltIn) "Built-in" else "Custom",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
                                 selectedSource = source
                                 val newSupported = source.getSupportedMediaTypes()
                                 if (selectedType !in newSupported) {
                                     selectedType = MediaType.ALL
                                 }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                            .testTag("home_source_option_${source.id}")
-                    ) {
-                        Text(
-                            text = source.name,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                isSourceDropdownExpanded = false
+                            },
+                            modifier = Modifier.testTag("home_source_option_${source.id}")
                         )
                     }
                 }

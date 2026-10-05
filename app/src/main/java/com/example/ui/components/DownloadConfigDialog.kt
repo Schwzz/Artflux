@@ -22,6 +22,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,10 +45,11 @@ import com.example.model.MediaType
 @Composable
 fun DownloadConfigDialog(
     item: MediaItem,
-    onConfirm: (DownloadQuality) -> Unit,
+    onConfirm: (DownloadQuality, String?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedQuality by remember { mutableStateOf(DownloadQuality.DEFAULT) }
+    var customFilename by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -94,6 +97,33 @@ fun DownloadConfigDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Optional Custom Filename Input
+                OutlinedTextField(
+                    value = customFilename,
+                    onValueChange = { customFilename = it },
+                    label = { Text("File name (optional)", fontSize = 13.sp) },
+                    placeholder = {
+                        Text(
+                            text = "Auto-generated if empty",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("download_filename_input")
+                )
+
                 Text(
                     text = "Select preferred download quality. The closest available variant from the source will be downloaded.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -118,7 +148,7 @@ fun DownloadConfigDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 DownloadQuality.values().forEach { quality ->
                     val isSelected = selectedQuality == quality
@@ -166,7 +196,10 @@ fun DownloadConfigDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(selectedQuality) },
+                onClick = {
+                    val sanitizedName = customFilename.trim().takeIf { it.isNotBlank() }
+                    onConfirm(selectedQuality, sanitizedName)
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("confirm_download_button")

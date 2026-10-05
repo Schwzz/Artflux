@@ -30,14 +30,18 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,12 +96,14 @@ fun SettingsScreen(
     onLoopVideoChange: (Boolean) -> Unit,
     onAddSourceClick: () -> Unit,
     onEditSource: (MediaSourceConfig) -> Unit = {},
+    onCopySource: (MediaSourceConfig) -> Unit = {},
     onTestSource: (MediaSourceConfig) -> Unit = {},
     onExportSource: (MediaSourceConfig) -> Unit = {},
     onDeleteSource: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isSourceConfigsExpanded by remember { mutableStateOf(true) }
+    var selectedAboutSource by remember { mutableStateOf<MediaSourceConfig?>(null) }
 
     Column(
         modifier = modifier
@@ -379,155 +386,184 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     sources.forEach { source ->
-                        Column(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
-                                .padding(12.dp)
-                                .testTag("settings_source_card_${source.id}")
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .testTag("settings_source_card_${source.id}"),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Title & Type Badge
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
+                            // Left: Source Name + Built-in/Custom Tag + API URL
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = source.name,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
-                                    Text(
-                                        text = source.apiUrl,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 11.sp,
-                                        maxLines = 1
-                                    )
-                                }
-
-                                if (source.isBuiltIn) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Built-in",
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(CyanAccent.copy(alpha = 0.2f))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Custom",
-                                            color = CyanAccent,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    if (source.isBuiltIn) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = "Built-in",
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(CyanAccent.copy(alpha = 0.2f))
+                                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = "Custom",
+                                                color = CyanAccent,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
+                                Text(
+                                    text = source.apiUrl,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
                             }
 
-                            // Feature Pills
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                if (source.supportsGifs) {
-                                    SmallFeaturePill("GIF", MagentaAccent)
-                                }
-                                if (source.supportsVideos) {
-                                    SmallFeaturePill("VIDEO", CyanAccent)
-                                }
-                                if (source.hasAuthentication) {
-                                    SmallFeaturePill("AUTH", EmeraldSafe)
-                                }
-                                if (source.safeRatingTag.isNotBlank() || source.adultRatingTag.isNotBlank()) {
-                                    SmallFeaturePill("RATINGS", MaterialTheme.colorScheme.primary)
-                                }
-                            }
-
-                            // Action Buttons Bar (Test, Export, Edit, Delete)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Test Diagnostics Button
+                            // Right: Three-dots menu (⋮)
+                            var isMenuExpanded by remember { mutableStateOf(false) }
+                            Box {
                                 IconButton(
-                                    onClick = { onTestSource(source) },
+                                    onClick = { isMenuExpanded = true },
                                     modifier = Modifier
-                                        .size(32.dp)
-                                        .testTag("test_source_action_${source.id}")
+                                        .size(36.dp)
+                                        .testTag("source_menu_button_${source.id}")
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Speed,
-                                        contentDescription = "Test source diagnostics",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-
-                                // Export Config Button
-                                IconButton(
-                                    onClick = { onExportSource(source) },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .testTag("export_source_action_${source.id}")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentCopy,
-                                        contentDescription = "Export sanitized configuration",
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Source options",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
-                                if (!source.isBuiltIn) {
-                                    // Edit Custom Source Button
-                                    IconButton(
-                                        onClick = { onEditSource(source) },
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .testTag("edit_source_action_${source.id}")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "Edit source",
-                                            tint = CyanAccent,
-                                            modifier = Modifier.size(16.dp)
+                                DropdownMenu(
+                                    expanded = isMenuExpanded,
+                                    onDismissRequest = { isMenuExpanded = false },
+                                    modifier = Modifier
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .testTag("source_dropdown_menu_${source.id}")
+                                ) {
+                                    // 1. About
+                                    DropdownMenuItem(
+                                        text = { Text("About", fontSize = 13.sp) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Info,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuExpanded = false
+                                            selectedAboutSource = source
+                                        },
+                                        modifier = Modifier.testTag("source_menu_about_${source.id}")
+                                    )
+
+                                    // 2. Diagnostics
+                                    DropdownMenuItem(
+                                        text = { Text("Diagnostics", fontSize = 13.sp) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Speed,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuExpanded = false
+                                            onTestSource(source)
+                                        },
+                                        modifier = Modifier.testTag("test_source_action_${source.id}")
+                                    )
+
+                                    // 3. Edit (Custom sources)
+                                    if (!source.isBuiltIn) {
+                                        DropdownMenuItem(
+                                            text = { Text("Edit", fontSize = 13.sp) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = CyanAccent
+                                                )
+                                            },
+                                            onClick = {
+                                                isMenuExpanded = false
+                                                onEditSource(source)
+                                            },
+                                            modifier = Modifier.testTag("edit_source_action_${source.id}")
                                         )
                                     }
 
-                                    // Delete Custom Source Button
-                                    IconButton(
-                                        onClick = { onDeleteSource(source.id) },
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .testTag("delete_source_action_${source.id}")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete custom source",
-                                            tint = RoseBadge,
-                                            modifier = Modifier.size(16.dp)
+                                    // 4. Copy (duplicate configuration)
+                                    DropdownMenuItem(
+                                        text = { Text("Copy", fontSize = 13.sp) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuExpanded = false
+                                            onCopySource(source)
+                                        },
+                                        modifier = Modifier.testTag("copy_source_action_${source.id}")
+                                    )
+
+                                    // 5. Delete (Custom sources only, preserving built-in protection)
+                                    if (!source.isBuiltIn) {
+                                        DropdownMenuItem(
+                                            text = { Text("Delete", color = RoseBadge, fontSize = 13.sp) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = RoseBadge
+                                                )
+                                            },
+                                            onClick = {
+                                                isMenuExpanded = false
+                                                onDeleteSource(source.id)
+                                            },
+                                            modifier = Modifier.testTag("delete_source_action_${source.id}")
                                         )
                                     }
                                 }
@@ -580,6 +616,143 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+
+    // Source Metadata / About Dialog
+    selectedAboutSource?.let { aboutSource ->
+        SourceAboutDialog(
+            source = aboutSource,
+            onDismiss = { selectedAboutSource = null }
+        )
+    }
+}
+
+@Composable
+fun SourceAboutDialog(
+    source: MediaSourceConfig,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp),
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = source.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    Text(
+                        text = if (source.isBuiltIn) "Built-in Source" else "Custom Source",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // API URL
+                Column {
+                    Text(
+                        text = "API URL",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = source.apiUrl,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        lineHeight = 17.sp
+                    )
+                }
+
+                // Supported Formats
+                Column {
+                    Text(
+                        text = "Supported Formats",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    val types = source.getSupportedMediaTypes().joinToString(", ") { it.label }
+                    Text(
+                        text = types,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp
+                    )
+                }
+
+                // Rating Tags Metadata
+                Column {
+                    Text(
+                        text = "Rating Query Tags",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Safe: ${source.safeRatingTag.ifBlank { "default" }} | Suggestive: ${source.suggestiveRatingTag.ifBlank { "default" }} | Adult: ${source.adultRatingTag.ifBlank { "default" }}",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 12.sp
+                    )
+                }
+
+                if (source.hasAuthentication) {
+                    Column {
+                        Text(
+                            text = "Authentication",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Configured (API Key / Auth Headers)",
+                            color = EmeraldSafe,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.testTag("close_source_about_button")
+            ) {
+                Text("Close", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable

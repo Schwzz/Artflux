@@ -442,37 +442,26 @@ class MediaApiClient {
             }
         }
 
-        // Media type detection (GIF, VIDEO, IMAGE)
-        val fileExt = obj.optString("file_ext").lowercase().trim().ifBlank {
-            finalImage.substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotBlank() }
+        // Media type detection (GIF, VIDEO, IMAGE) using strong evidence hierarchy
+        val explicitTypeField = extractValue(obj, source.mediaTypeField).ifBlank {
+            obj.optString("media_type", obj.optString("type", obj.optString("file_type", obj.optString("mime_type", ""))))
         }
-        val typeStr = extractValue(obj, source.mediaTypeField).lowercase()
-        val imageExt = finalImage.substringAfterLast('.', "").substringBefore('?').lowercase()
-        val rawImageExt = rawImage.substringAfterLast('.', "").substringBefore('?').lowercase()
-        val safebooruImageField = obj.optString("image").lowercase()
+        val fileExtField = obj.optString("file_ext", obj.optString("ext", obj.optString("extension", "")))
+        val safebooruImage = obj.optString("image")
+        val effectiveFileExt = fileExtField.ifBlank {
+            if (safebooruImage.isNotBlank()) safebooruImage.substringAfterLast('.', "") else ""
+        }
 
-        val isGif = fileExt == "gif" ||
-                imageExt == "gif" ||
-                rawImageExt == "gif" ||
-                safebooruImageField.endsWith(".gif") ||
-                typeStr == "gif" ||
-                typeStr.contains("gif")
-
-        val isVideo = !isGif && (
-                fileExt in listOf("mp4", "webm", "mkv", "mov") ||
-                imageExt in listOf("mp4", "webm", "mkv", "mov") ||
-                rawImageExt in listOf("mp4", "webm", "mkv", "mov") ||
-                safebooruImageField.endsWith(".mp4") ||
-                safebooruImageField.endsWith(".webm") ||
-                typeStr.contains("video") ||
-                typeStr.contains("mp4") ||
-                typeStr.contains("webm")
+        val mediaType = detectMediaType(
+            explicitType = explicitTypeField,
+            fileExtField = effectiveFileExt,
+            actualMediaUrl = finalImage,
+            rawMediaUrl = rawImage,
+            tags = tagsList
         )
 
-        val mediaType = when {
-            isVideo -> MediaType.VIDEO
-            isGif -> MediaType.GIF
-            else -> MediaType.IMAGE
+        val resolvedFileExt = effectiveFileExt.ifBlank {
+            finalImage.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it.isNotBlank() }
         }
 
         val author = extractValue(obj, source.authorField).ifBlank { null }
@@ -503,11 +492,95 @@ class MediaApiClient {
             sourceName = source.name,
             description = obj.optString("alt_text", obj.optString("description", "")).ifBlank { null },
             fileSize = fileSize,
-            fileExt = fileExt,
+            fileExt = resolvedFileExt,
             score = score,
             favorites = favorites,
             views = views
         )
+    }
+
+    companion object {
+        /**
+         * Detects the media type using the strongest available evidence in strict priority:
+         * 1. Explicit API media type field
+         * 2. API file extension field
+         * 3. Actual media URL extension
+         * 4. HTTP Content-Type as fallback when provided
+         * 5. Tags only as a last-resort hint
+         */
+        fun detectMediaType(
+            explicitType: String? = null,
+            fileExtField: String? = null,
+            actualMediaUrl: String? = null,
+            rawMediaUrl: String? = null,
+            contentType: String? = null,
+            tags: List<String> = emptyList()
+        ): MediaType {
+            // 1. Explicit API media type / MIME type field
+            val type = explicitType?.lowercase()?.trim().orEmpty()
+            if (type.isNotBlank()) {
+                when {
+                    type == "gif" || type == "image/gif" || type == "animated_gif" || type.contains("gif") -> return MediaType.GIF
+                    type.startsWith("video/") || type in listOf("video", "mp4", "webm", "mkv", "mov", "avi") ||
+                            type.contains("video") || type.contains("webm") || type.contains("mp4") || type.contains("mkv") -> return MediaType.VIDEO
+                    type.startsWith("image/") || type in listOf("image", "jpg", "jpeg", "png", "webp", "bmp", "photo", "illustration") -> return MediaType.IMAGE
+                }
+            }
+
+            // 2. API file extension field
+            val ext = fileExtField?.lowercase()?.trim()?.removePrefix(".").orEmpty()
+            if (ext.isNotBlank()) {
+                when {
+                    ext == "gif" -> return MediaType.GIF
+                    ext in listOf("mp4", "webm", "mkv", "mov", "avi") -> return MediaType.VIDEO
+                    ext in listOf("jpg", "jpeg", "png", "webp", "bmp") -> return MediaType.IMAGE
+                }
+            }
+
+            // 3. Actual media URL extension (from actual media file, NOT preview/thumbnail)
+            fun extractExt(url: String?): String {
+                if (url.isNullOrBlank()) return ""
+                return url.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().trim()
+            }
+
+            val actualExt = extractExt(actualMediaUrl)
+            if (actualExt.isNotBlank()) {
+                when {
+                    actualExt == "gif" -> return MediaType.GIF
+                    actualExt in listOf("mp4", "webm", "mkv", "mov", "avi") -> return MediaType.VIDEO
+                    actualExt in listOf("jpg", "jpeg", "png", "webp", "bmp") -> return MediaType.IMAGE
+                }
+            }
+
+            val rawExt = extractExt(rawMediaUrl)
+            if (rawExt.isNotBlank()) {
+                when {
+                    rawExt == "gif" -> return MediaType.GIF
+                    rawExt in listOf("mp4", "webm", "mkv", "mov", "avi") -> return MediaType.VIDEO
+                    rawExt in listOf("jpg", "jpeg", "png", "webp", "bmp") -> return MediaType.IMAGE
+                }
+            }
+
+            // 4. HTTP Content-Type as fallback when provided
+            val mime = contentType?.lowercase()?.trim().orEmpty()
+            if (mime.isNotBlank()) {
+                when {
+                    mime.contains("gif") -> return MediaType.GIF
+                    mime.startsWith("video/") -> return MediaType.VIDEO
+                    mime.startsWith("image/") -> return MediaType.IMAGE
+                }
+            }
+
+            // 5. Tags only as a last-resort hint (without confusing generic 'animated' tags with video)
+            val lowerTags = tags.map { it.lowercase().trim() }
+            when {
+                lowerTags.any { it == "animated_gif" || it == "gif" } -> return MediaType.GIF
+                lowerTags.any { it == "webm" || it == "mp4" || it == "video" || it == "mkv" } -> return MediaType.VIDEO
+                lowerTags.any { it == "animated" } -> return MediaType.GIF
+            }
+
+            return MediaType.IMAGE
+        }
     }
 
     private fun resolveUrls(

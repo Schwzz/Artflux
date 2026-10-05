@@ -67,11 +67,17 @@ data class MediaSourceConfig(
     val suggestiveRatingTag: String = "",
     val adultRatingTag: String = ""
 ) {
-    val supportsGifs: Boolean
+    val canDiscoverGifs: Boolean
         get() = gifQueryTag.isNotBlank()
 
-    val supportsVideos: Boolean
+    val canDiscoverVideos: Boolean
         get() = videoQueryTag.isNotBlank()
+
+    val supportsGifs: Boolean
+        get() = true
+
+    val supportsVideos: Boolean
+        get() = true
 
     val hasAuthentication: Boolean
         get() = authType != AuthType.NONE ||
@@ -79,10 +85,21 @@ data class MediaSourceConfig(
                 authHeaderValue.isNotBlank() ||
                 authQueryParams.any { it.key.isNotBlank() && it.value.isNotBlank() }
 
+    /**
+     * Returns media types that Artflux can render and filter for this source.
+     * All sources support IMAGE, GIF, and VIDEO in Artflux.
+     */
     fun getSupportedMediaTypes(): List<MediaType> {
+        return listOf(MediaType.ALL, MediaType.IMAGE, MediaType.GIF, MediaType.VIDEO)
+    }
+
+    /**
+     * Returns media types that this source can specifically discover/query via server-side tags.
+     */
+    fun getDiscoverableMediaTypes(): List<MediaType> {
         val list = mutableListOf(MediaType.ALL, MediaType.IMAGE)
-        if (supportsGifs) list.add(MediaType.GIF)
-        if (supportsVideos) list.add(MediaType.VIDEO)
+        if (canDiscoverGifs) list.add(MediaType.GIF)
+        if (canDiscoverVideos) list.add(MediaType.VIDEO)
         return list
     }
 
