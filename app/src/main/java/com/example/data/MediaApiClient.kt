@@ -339,7 +339,7 @@ class MediaApiClient {
         if (firstParsed != null) {
             steps.add(DiagnosticStep("Ratings", DiagnosticStatus.PASSED, "Rating mapped to '${firstParsed.rating.label}' (field: '${source.ratingField}')."))
         } else {
-            steps.add(DiagnosticStep("Ratings", DiagnosticStatus.WARNING, "Rating field '${source.ratingField}' not found (defaulting to Safe)."))
+            steps.add(DiagnosticStep("Ratings", DiagnosticStatus.WARNING, "Rating field '${source.ratingField}' not found (defaulting to Unknown)."))
         }
 
         // 8. Pagination Check
@@ -507,20 +507,20 @@ class MediaApiClient {
 
     companion object {
         fun parseRating(ratingStr: String?, isDanbooru: Boolean = false): MediaRating {
-            val r = ratingStr?.lowercase()?.trim().orEmpty()
+            if (ratingStr.isNullOrBlank()) return MediaRating.UNKNOWN
+            val r = ratingStr.lowercase().trim()
             return when {
-                isDanbooru && (r == "s" || r == "sensitive") -> MediaRating.SUGGESTIVE
                 isDanbooru && (r == "g" || r == "general") -> MediaRating.SAFE
-                isDanbooru && (r == "q" || r == "questionable") -> MediaRating.SUGGESTIVE
+                isDanbooru && (r == "s" || r == "sensitive" || r == "q" || r == "questionable") -> MediaRating.SUGGESTIVE
                 isDanbooru && (r == "e" || r == "explicit") -> MediaRating.ADULT
                 r == "s" && !isDanbooru -> MediaRating.SAFE
-                r == "g" || r == "general" || r == "safe" -> MediaRating.SAFE
-                r == "q" || r == "questionable" || r == "sensitive" || r == "suggestive" -> MediaRating.SUGGESTIVE
-                r == "e" || r == "explicit" || r == "adult" || r == "nsfw" -> MediaRating.ADULT
-                r.contains("adult") || r.contains("expl") -> MediaRating.ADULT
+                r == "g" || r == "general" || r == "safe" || r == "rating:safe" || r == "rating:g" || r == "rating:general" -> MediaRating.SAFE
+                r == "q" || r == "questionable" || r == "sensitive" || r == "suggestive" || r == "rating:questionable" || r == "rating:sensitive" || r == "rating:q" -> MediaRating.SUGGESTIVE
+                r == "e" || r == "explicit" || r == "adult" || r == "nsfw" || r == "rating:explicit" || r == "rating:adult" || r == "rating:e" -> MediaRating.ADULT
+                r.contains("adult") || r.contains("expl") || r.contains("nsfw") -> MediaRating.ADULT
                 r.contains("quest") || r.contains("sensit") || r.contains("suggest") -> MediaRating.SUGGESTIVE
-                r.contains("safe") || r.contains("gen") -> MediaRating.SAFE
-                else -> MediaRating.SAFE
+                r.contains("safe") || r.contains("general") -> MediaRating.SAFE
+                else -> MediaRating.UNKNOWN
             }
         }
 

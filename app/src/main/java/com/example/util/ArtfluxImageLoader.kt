@@ -21,6 +21,8 @@ object ArtfluxImageLoader {
                     OkHttpClient.Builder()
                         .connectTimeout(15, TimeUnit.SECONDS)
                         .readTimeout(20, TimeUnit.SECONDS)
+                        .followRedirects(true)
+                        .followSslRedirects(true)
                         .addInterceptor { chain ->
                             val originalRequest = chain.request()
                             val requestBuilder = originalRequest.newBuilder()
@@ -28,7 +30,15 @@ object ArtfluxImageLoader {
                             for ((k, v) in headers) {
                                 requestBuilder.header(k, v)
                             }
-                            chain.proceed(requestBuilder.build())
+                            val response = chain.proceed(requestBuilder.build())
+                            if (!response.isSuccessful) {
+                                throw java.io.IOException("HTTP ${response.code}: ${response.message.ifBlank { "Request failed" }}")
+                            }
+                            val contentType = response.header("Content-Type")?.lowercase().orEmpty()
+                            if (contentType.isNotBlank() && (contentType.contains("text/html") || contentType.contains("application/json") || contentType.contains("text/plain"))) {
+                                throw java.io.IOException("Server returned '$contentType' instead of valid media (HTTP ${response.code})")
+                            }
+                            response
                         }
                         .build()
                 }

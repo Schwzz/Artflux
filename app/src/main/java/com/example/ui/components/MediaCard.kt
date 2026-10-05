@@ -71,8 +71,8 @@ fun MediaCard(
     val context = LocalContext.current
     val imageLoader = ArtfluxImageLoader.get(context)
 
-    val isNsfw = item.rating == MediaRating.ADULT || item.rating == MediaRating.SUGGESTIVE
-    val shouldBlur = blurNsfw && isNsfw
+    val isProtected = item.rating == MediaRating.ADULT || item.rating == MediaRating.SUGGESTIVE || item.rating == MediaRating.UNKNOWN
+    val shouldBlur = blurNsfw && isProtected
 
     // Primary URL selection respecting deterministic preview contract:
     // Feed strictly uses static previewUrl; never loads raw video media

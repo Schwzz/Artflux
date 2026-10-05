@@ -60,6 +60,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -89,6 +90,11 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaType
@@ -167,8 +173,49 @@ fun LightboxViewer(
                     val lifecycleOwner = LocalLifecycleOwner.current
                     val isCurrentPage = pagerState.currentPage == pageIndex
                     var playbackError by remember(pageItem.id) { mutableStateOf<String?>(null) }
+                    var videoRetryTrigger by remember(pageItem.id) { mutableIntStateOf(0) }
 
-                    val exoPlayer = remember(pageItem.id, isCurrentPage, loopVideo) {
+                    // Verify video stream responsiveness and detect HTTP 403 or HTML errors
+                    LaunchedEffect(pageItem.id, isCurrentPage, videoRetryTrigger) {
+                        if (isCurrentPage) {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val okHttpClient = OkHttpClient.Builder()
+                                        .connectTimeout(12, TimeUnit.SECONDS)
+                                        .readTimeout(12, TimeUnit.SECONDS)
+                                        .followRedirects(true)
+                                        .followSslRedirects(true)
+                                        .build()
+                                    val req = Request.Builder()
+                                        .url(pageItem.actualMediaUrl)
+                                        .header("Range", "bytes=0-1024")
+                                    for ((k, v) in ArtfluxNetwork.getHeadersForUrl(pageItem.actualMediaUrl)) {
+                                        req.header(k, v)
+                                    }
+                                    val resp = okHttpClient.newCall(req.build()).execute()
+                                    val code = resp.code
+                                    val contentType = resp.header("Content-Type")?.lowercase().orEmpty()
+                                    if (code == 403) {
+                                        if (playbackError == null) {
+                                            playbackError = "ERROR_CODE_IO_BAD_HTTP_STATUS: HTTP 403 Forbidden (CDN anti-hotlink denied access)"
+                                        }
+                                    } else if (code in 400..599) {
+                                        if (playbackError == null) {
+                                            playbackError = "ERROR_CODE_IO_BAD_HTTP_STATUS: HTTP $code (${resp.message.ifBlank { "Error response" }})"
+                                        }
+                                    } else if (contentType.isNotBlank() && (contentType.contains("text/html") || contentType.contains("application/json") || contentType.contains("text/plain"))) {
+                                        if (playbackError == null) {
+                                            playbackError = "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED: Expected video stream but server returned '$contentType'"
+                                        }
+                                    }
+                                    resp.close()
+                                } catch (_: Exception) {
+                                }
+                            }
+                        }
+                    }
+
+                    val exoPlayer = remember(pageItem.id, isCurrentPage, loopVideo, videoRetryTrigger) {
                         if (isCurrentPage) {
                             val requestHeaders = ArtfluxNetwork.getHeadersForUrl(pageItem.actualMediaUrl)
 
@@ -185,14 +232,35 @@ fun LightboxViewer(
                             ExoPlayer.Builder(context)
                                 .setMediaSourceFactory(mediaSourceFactory)
                                 .build().apply {
-                                    val media3Item = Media3Item.fromUri(Uri.parse(pageItem.actualMediaUrl))
-                                    setMediaItem(media3Item)
+                                    val media3ItemBuilder = Media3Item.Builder().setUri(Uri.parse(pageItem.actualMediaUrl))
+                                    val clean = pageItem.actualMediaUrl.substringBefore('?').substringBefore('#').lowercase()
+                                    when {
+                                        clean.endsWith(".mp4") -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP4)
+                                        clean.endsWith(".webm") -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_WEBM)
+                                        clean.endsWith(".mkv") -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MATROSKA)
+                                    }
+                                    setMediaItem(media3ItemBuilder.build())
                                     repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                                     playWhenReady = true
                                     addListener(object : Player.Listener {
                                         override fun onPlayerError(error: PlaybackException) {
-                                            val causeMsg = error.cause?.message ?: error.message ?: "Failed to play video"
-                                            playbackError = causeMsg
+                                            val codeName = error.errorCodeName
+                                            val cause = error.cause
+                                            val causeDetails = when (cause) {
+                                                is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException -> {
+                                                    "HTTP ${cause.responseCode} (${cause.responseMessage ?: "Error"})"
+                                                }
+                                                is androidx.media3.datasource.HttpDataSource.InvalidContentTypeException -> {
+                                                    "Invalid Content-Type: ${cause.contentType} (expected video stream)"
+                                                }
+                                                is androidx.media3.datasource.HttpDataSource.HttpDataSourceException -> {
+                                                    cause.message ?: "Network stream failure"
+                                                }
+                                                else -> {
+                                                    cause?.message ?: error.message ?: "Playback failure"
+                                                }
+                                            }
+                                            playbackError = "$codeName: $causeDetails"
                                         }
                                         override fun onPlaybackStateChanged(playbackState: Int) {
                                             if (playbackState == Player.STATE_READY) {
@@ -205,7 +273,7 @@ fun LightboxViewer(
                         } else null
                     }
 
-                    DisposableEffect(pageItem.id, isCurrentPage) {
+                    DisposableEffect(pageItem.id, isCurrentPage, videoRetryTrigger) {
                         onDispose {
                             exoPlayer?.pause()
                             exoPlayer?.stop()
@@ -311,6 +379,7 @@ fun LightboxViewer(
                                     FilledTonalButton(
                                         onClick = {
                                             playbackError = null
+                                            videoRetryTrigger++
                                             exoPlayer?.prepare()
                                             exoPlayer?.play()
                                         },
@@ -334,6 +403,7 @@ fun LightboxViewer(
                 var scale by remember(pageItem.id) { mutableFloatStateOf(1f) }
                 var offsetX by remember(pageItem.id) { mutableFloatStateOf(0f) }
                 var offsetY by remember(pageItem.id) { mutableFloatStateOf(0f) }
+                var mediaRetryTrigger by remember(pageItem.id) { mutableIntStateOf(0) }
 
                 LaunchedEffect(scale) {
                     if (pagerState.currentPage == pageIndex) {
@@ -343,7 +413,18 @@ fun LightboxViewer(
 
                 // Fullscreen URL selection: load actualMediaUrl directly without guessing
                 val fullscreenDisplayUrl = pageItem.actualMediaUrl
-                val previewThumbnailUrl = pageItem.previewUrl
+                val isGif = pageItem.mediaType == MediaType.GIF
+
+                val imageRequest = remember(pageItem.id, fullscreenDisplayUrl, mediaRetryTrigger) {
+                    val builder = ImageRequest.Builder(context)
+                        .data(fullscreenDisplayUrl)
+                        .crossfade(true)
+                    val reqHeaders = ArtfluxNetwork.getHeadersForUrl(fullscreenDisplayUrl)
+                    for ((k, v) in reqHeaders) {
+                        builder.setHeader(k, v)
+                    }
+                    builder.build()
+                }
 
                 Box(
                     modifier = Modifier
@@ -410,11 +491,7 @@ fun LightboxViewer(
                     contentAlignment = Alignment.Center
                 ) {
                     SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(fullscreenDisplayUrl)
-                            .crossfade(true)
-                            .placeholderMemoryCacheKey(previewThumbnailUrl)
-                            .build(),
+                        model = imageRequest,
                         imageLoader = ArtfluxImageLoader.get(context),
                         contentDescription = pageItem.title,
                         contentScale = ContentScale.Fit,
@@ -432,24 +509,64 @@ fun LightboxViewer(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                // Instant preview placeholder from already cached feed thumbnail/sample
-                                if (previewThumbnailUrl.isNotBlank()) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(previewThumbnailUrl)
-                                            .crossfade(false)
-                                            .build(),
-                                        imageLoader = ArtfluxImageLoader.get(context),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
                                 CircularProgressIndicator(
                                     color = NeonIndigoLight,
                                     strokeWidth = 3.dp,
                                     modifier = Modifier.size(32.dp)
                                 )
+                            }
+                        },
+                        error = { state ->
+                            val throwable = state.result.throwable
+                            val errorDetails = throwable.message ?: "Failed to load ${if (isGif) "GIF animation" else "image"}"
+
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .align(Alignment.Center)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(20.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Load Error",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Text(
+                                        text = if (isGif) "GIF Failed to Load" else "Image Failed to Load",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = errorDetails,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    FilledTonalButton(
+                                        onClick = {
+                                            mediaRetryTrigger++
+                                        },
+                                        modifier = Modifier.testTag("media_retry_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Retry",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Retry")
+                                    }
+                                }
                             }
                         }
                     )

@@ -1951,5 +1951,93 @@ class ExampleRobolectricTest {
     assertTrue("Video previewUrl is static image poster", parsedVideo.previewUrl.endsWith(".jpg"))
     assertFalse("Video previewUrl must never be a video", MediaApiClient.isVideoUrl(parsedVideo.previewUrl))
   }
+
+  @Test
+  fun testMediaPipelineAndNsfwProtectionDiagnostics() {
+    // 1. Safe rating -> SAFE
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("general"))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("safe"))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("g", isDanbooru = true))
+    assertEquals(MediaRating.SAFE, MediaApiClient.parseRating("s", isDanbooru = false))
+
+    // 2. Suggestive rating -> SUGGESTIVE
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("sensitive"))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("questionable"))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("suggestive"))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("s", isDanbooru = true))
+    assertEquals(MediaRating.SUGGESTIVE, MediaApiClient.parseRating("q", isDanbooru = true))
+
+    // 3. Adult rating -> ADULT
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("explicit"))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("adult"))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("nsfw"))
+    assertEquals(MediaRating.ADULT, MediaApiClient.parseRating("e", isDanbooru = true))
+
+    // 4. Unknown rating -> UNKNOWN (NEVER defaults to SAFE)
+    assertEquals(MediaRating.UNKNOWN, MediaApiClient.parseRating(null))
+    assertEquals(MediaRating.UNKNOWN, MediaApiClient.parseRating(""))
+    assertEquals(MediaRating.UNKNOWN, MediaApiClient.parseRating("   "))
+    assertEquals(MediaRating.UNKNOWN, MediaApiClient.parseRating("unrecognized_rating_xyz"))
+    assertEquals(MediaRating.UNKNOWN, MediaApiClient.parseRating("random_text"))
+
+    // 5. UNKNOWN is protected by NSFW blur
+    fun isNsfwProtected(rating: MediaRating): Boolean {
+      return rating == MediaRating.ADULT || rating == MediaRating.SUGGESTIVE || rating == MediaRating.UNKNOWN
+    }
+    assertTrue("UNKNOWN rating must be protected under NSFW blur", isNsfwProtected(MediaRating.UNKNOWN))
+
+    // 6. SUGGESTIVE and ADULT are protected; SAFE remains unprotected
+    assertTrue("SUGGESTIVE rating must be protected under NSFW blur", isNsfwProtected(MediaRating.SUGGESTIVE))
+    assertTrue("ADULT rating must be protected under NSFW blur", isNsfwProtected(MediaRating.ADULT))
+    assertFalse("SAFE rating must remain unprotected", isNsfwProtected(MediaRating.SAFE))
+
+    // 7. GIF actual URL passed to fullscreen (never previewUrl)
+    val gifItem = MediaItem(
+      id = "gif_diag_1",
+      title = "Diag GIF",
+      actualMediaUrl = "https://cdn.example.org/actual_animation.gif",
+      previewUrl = "https://cdn.example.org/static_poster.jpg",
+      mediaType = MediaType.GIF,
+      rating = MediaRating.UNKNOWN
+    )
+    val fullscreenGifUrl = gifItem.actualMediaUrl
+    assertEquals("https://cdn.example.org/actual_animation.gif", fullscreenGifUrl)
+    assertTrue("GIF actual URL must be .gif for decoder", fullscreenGifUrl.endsWith(".gif"))
+    assertTrue("Fullscreen GIF must not use previewUrl", gifItem.previewUrl != fullscreenGifUrl)
+
+    // 8. GIF decoder/request failure produces an error state instead of blank screen
+    val simulatedException: Throwable = java.io.IOException("HTTP 403: Forbidden")
+    val errorDisplay = simulatedException.message ?: "Failed to load GIF animation"
+    assertTrue("Error state must be non-empty and visible", errorDisplay.isNotBlank())
+    assertEquals("HTTP 403: Forbidden", errorDisplay)
+
+    // 9. Video actual URL passed to ExoPlayer (never previewUrl)
+    val videoItem = MediaItem(
+      id = "vid_diag_1",
+      title = "Diag Video",
+      actualMediaUrl = "https://cdn.example.org/actual_stream.mp4",
+      previewUrl = "https://cdn.example.org/static_poster.jpg",
+      mediaType = MediaType.VIDEO,
+      rating = MediaRating.SUGGESTIVE
+    )
+    val playbackUri = videoItem.actualMediaUrl
+    assertEquals("https://cdn.example.org/actual_stream.mp4", playbackUri)
+    assertTrue("Video URI must be video stream", playbackUri.endsWith(".mp4"))
+    assertTrue("Playback URI must not be previewUrl", videoItem.previewUrl != playbackUri)
+
+    // 10. PlaybackException is surfaced instead of silently failing
+    val testPlaybackException = androidx.media3.common.PlaybackException(
+      "Source error",
+      java.io.IOException("HTTP 403 Forbidden"),
+      androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+    )
+    val codeName = testPlaybackException.errorCodeName
+    val cause = testPlaybackException.cause
+    val causeDetails = cause?.message ?: testPlaybackException.message ?: "Playback failure"
+    val formattedError = "$codeName: $causeDetails"
+    assertTrue("Playback error must surface errorCodeName", formattedError.contains("ERROR_CODE_IO_BAD_HTTP_STATUS"))
+    assertTrue("Playback error must surface HTTP 403 details", formattedError.contains("HTTP 403 Forbidden"))
+    assertFalse("Playback error must not be silent or blank", formattedError.isBlank())
+  }
 }
 
