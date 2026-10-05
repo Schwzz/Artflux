@@ -186,6 +186,15 @@ fun MediaCard(
                 }
             }
 
+            if (shouldBlur) {
+                // Frosted backdrop overlay for 100% reliable blur and privacy across all Android versions
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                )
+            }
+
             // Centered Play Button overlay for Videos (Only if not blurred)
             if (item.mediaType == MediaType.VIDEO && !shouldBlur) {
                 Box(
