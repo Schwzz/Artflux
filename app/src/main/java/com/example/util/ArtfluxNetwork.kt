@@ -7,8 +7,7 @@ import android.net.Uri
  * and background downloads across supported Booru CDNs.
  */
 object ArtfluxNetwork {
-    const val DEFAULT_USER_AGENT =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    const val DEFAULT_USER_AGENT = "ArtfluxApp/2.0 (Android; MediaBrowser)"
 
     /**
      * Resolves the required anti-hotlink Referer header for a given URL across supported CDNs.

@@ -1792,8 +1792,18 @@ class ExampleRobolectricTest {
 
     // Header bundle check
     val headers = ArtfluxNetwork.getHeadersForUrl("https://img4.gelbooru.com/images/1/2/pic.jpg")
+    assertEquals("ArtfluxApp/2.0 (Android; MediaBrowser)", headers["User-Agent"])
     assertEquals(ArtfluxNetwork.DEFAULT_USER_AGENT, headers["User-Agent"])
     assertEquals("https://gelbooru.com/", headers["Referer"])
+  }
+
+  @Test
+  fun testDanbooruMediaRequestUsesApplicationUserAgent() {
+    val danbooruMediaUrl = "https://cdn.donmai.us/original/ab/cd/video.mp4"
+    val headers = ArtfluxNetwork.getHeadersForUrl(danbooruMediaUrl)
+    assertEquals("ArtfluxApp/2.0 (Android; MediaBrowser)", headers["User-Agent"])
+    assertEquals("https://danbooru.donmai.us/", headers["Referer"])
+    assertEquals("ArtfluxApp/2.0 (Android; MediaBrowser)", ArtfluxNetwork.DEFAULT_USER_AGENT)
   }
 
   // --- 36. Deterministic Media Pipeline Tests ---
