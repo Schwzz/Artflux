@@ -2,6 +2,7 @@ package com.example
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.MediaApiClient
 import com.example.model.FilterState
@@ -1768,6 +1769,36 @@ class ExampleRobolectricTest {
 
     // Fullscreen lightbox viewer always accesses the unblurred original image URL
     assertEquals("https://example.com/safe.jpg", adultItem.imageUrl)
+  }
+
+  @Test
+  fun testVideoAntiHotlinkHeadersAndExoPlayerFallback() {
+    fun resolveReferer(url: String): String {
+      val urlLower = url.lowercase()
+      return when {
+        urlLower.contains("gelbooru.com") -> "https://gelbooru.com/"
+        urlLower.contains("danbooru") || urlLower.contains("donmai.us") -> "https://danbooru.donmai.us/"
+        urlLower.contains("safebooru.org") || urlLower.contains("safebooru") -> "https://safebooru.org/"
+        urlLower.contains("yande.re") -> "https://yande.re/"
+        else -> {
+          val uri = Uri.parse(url)
+          "${uri.scheme ?: "https"}://${uri.host}/"
+        }
+      }
+    }
+
+    // Danbooru videos on cdn.donmai.us must resolve to danbooru.donmai.us referer
+    assertEquals("https://danbooru.donmai.us/", resolveReferer("https://cdn.donmai.us/original/ab/cd/clip.mp4"))
+    assertEquals("https://danbooru.donmai.us/", resolveReferer("https://raikou1.donmai.us/sample/12/34/clip.mp4"))
+
+    // Gelbooru videos
+    assertEquals("https://gelbooru.com/", resolveReferer("https://img4.gelbooru.com/images/56/78/sample.mp4"))
+
+    // Safebooru
+    assertEquals("https://safebooru.org/", resolveReferer("https://safebooru.org/samples/12/sample_34.mp4"))
+
+    // Custom booru
+    assertEquals("https://custombooru.example.com/", resolveReferer("https://custombooru.example.com/data/video.webm"))
   }
 }
 

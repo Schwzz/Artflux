@@ -42,10 +42,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +73,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -77,6 +81,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem as Media3Item
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -160,23 +165,42 @@ fun LightboxViewer(
                 key(pageItem.id) {
                     val lifecycleOwner = LocalLifecycleOwner.current
                     val isCurrentPage = pagerState.currentPage == pageIndex
+                    var playbackError by remember(pageItem.id) { mutableStateOf<String?>(null) }
 
                     val exoPlayer = remember(pageItem.id, isCurrentPage, loopVideo) {
                         if (isCurrentPage) {
+                            val videoUrl = pageItem.imageUrl.lowercase()
+                            val requestHeaders = mutableMapOf<String, String>(
+                                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                            )
+
+                            // Anti-hotlink Referer headers for Booru CDNs (prevents 403 Forbidden)
+                            if (videoUrl.contains("gelbooru.com")) {
+                                requestHeaders["Referer"] = "https://gelbooru.com/"
+                            } else if (videoUrl.contains("danbooru") || videoUrl.contains("donmai.us")) {
+                                requestHeaders["Referer"] = "https://danbooru.donmai.us/"
+                            } else if (videoUrl.contains("safebooru.org") || videoUrl.contains("safebooru")) {
+                                requestHeaders["Referer"] = "https://safebooru.org/"
+                            } else if (videoUrl.contains("yande.re")) {
+                                requestHeaders["Referer"] = "https://yande.re/"
+                            } else {
+                                try {
+                                    val parsed = Uri.parse(pageItem.imageUrl)
+                                    parsed.host?.let { host ->
+                                        requestHeaders["Referer"] = "${parsed.scheme ?: "https"}://$host/"
+                                    }
+                                } catch (_: Exception) {}
+                            }
+
                             val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
                                 .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
                                 .setAllowCrossProtocolRedirects(true)
                                 .setConnectTimeoutMs(15000)
                                 .setReadTimeoutMs(20000)
+                                .setDefaultRequestProperties(requestHeaders)
 
-                            if (pageItem.imageUrl.contains("gelbooru.com")) {
-                                httpDataSourceFactory.setDefaultRequestProperties(mapOf("Referer" to "https://gelbooru.com/"))
-                            } else if (pageItem.imageUrl.contains("danbooru")) {
-                                httpDataSourceFactory.setDefaultRequestProperties(mapOf("Referer" to "https://danbooru.donmai.us/"))
-                            }
-
-                            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
-                                .setDataSourceFactory(httpDataSourceFactory)
+                            val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, httpDataSourceFactory)
+                            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
 
                             ExoPlayer.Builder(context)
                                 .setMediaSourceFactory(mediaSourceFactory)
@@ -185,6 +209,17 @@ fun LightboxViewer(
                                     setMediaItem(media3Item)
                                     repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
                                     playWhenReady = true
+                                    addListener(object : Player.Listener {
+                                        override fun onPlayerError(error: PlaybackException) {
+                                            val causeMsg = error.cause?.message ?: error.message ?: "Failed to play video"
+                                            playbackError = causeMsg
+                                        }
+                                        override fun onPlaybackStateChanged(playbackState: Int) {
+                                            if (playbackState == Player.STATE_READY) {
+                                                playbackError = null
+                                            }
+                                        }
+                                    })
                                     prepare()
                                 }
                         } else null
@@ -257,6 +292,60 @@ fun LightboxViewer(
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
+                        }
+
+                        // Playback error overlay
+                        if (playbackError != null) {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
+                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .align(Alignment.Center)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(20.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Playback Error",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Text(
+                                        text = "Playback Error",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = playbackError ?: "Unable to stream media",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    FilledTonalButton(
+                                        onClick = {
+                                            playbackError = null
+                                            exoPlayer?.prepare()
+                                            exoPlayer?.play()
+                                        },
+                                        modifier = Modifier.testTag("video_retry_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "Retry",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Retry Playback")
+                                    }
+                                }
+                            }
                         }
                     }
                 }

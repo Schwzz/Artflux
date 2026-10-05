@@ -31,15 +31,19 @@ object ArtfluxImageLoader {
                                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                             )
 
-                            // Gelbooru CDN requires Referer header to prevent 403 Forbidden anti-hotlink responses
+                            // Anti-hotlink Referer headers for Booru CDNs (prevents HTTP 403 Forbidden)
                             if (host.contains("gelbooru.com")) {
                                 requestBuilder.header("Referer", "https://gelbooru.com/")
-                            } else if (host.contains("danbooru")) {
+                            } else if (host.contains("danbooru") || host.contains("donmai.us")) {
                                 requestBuilder.header("Referer", "https://danbooru.donmai.us/")
-                            } else if (host.contains("safebooru.org")) {
+                            } else if (host.contains("safebooru.org") || host.contains("safebooru")) {
                                 requestBuilder.header("Referer", "https://safebooru.org/")
                             } else if (host.contains("yande.re")) {
                                 requestBuilder.header("Referer", "https://yande.re/")
+                            } else {
+                                try {
+                                    requestBuilder.header("Referer", "${originalRequest.url.scheme}://${originalRequest.url.host}/")
+                                } catch (_: Exception) {}
                             }
 
                             chain.proceed(requestBuilder.build())

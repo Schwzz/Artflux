@@ -725,6 +725,22 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                 )
                 setAllowedOverMetered(true)
                 setAllowedOverRoaming(true)
+                addRequestHeader(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                )
+                val urlLower = targetUrl.lowercase()
+                when {
+                    urlLower.contains("gelbooru.com") -> addRequestHeader("Referer", "https://gelbooru.com/")
+                    urlLower.contains("danbooru") || urlLower.contains("donmai.us") -> addRequestHeader("Referer", "https://danbooru.donmai.us/")
+                    urlLower.contains("safebooru.org") || urlLower.contains("safebooru") -> addRequestHeader("Referer", "https://safebooru.org/")
+                    urlLower.contains("yande.re") -> addRequestHeader("Referer", "https://yande.re/")
+                    else -> {
+                        uri.host?.let { host ->
+                            addRequestHeader("Referer", "${uri.scheme ?: "https"}://$host/")
+                        }
+                    }
+                }
             }
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
             downloadManager?.enqueue(request)
