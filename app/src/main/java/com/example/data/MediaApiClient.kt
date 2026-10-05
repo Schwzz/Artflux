@@ -657,6 +657,42 @@ class MediaApiClient {
             }
         }
 
+        // Gelbooru handling (img4.gelbooru.com CDN / HTTPS normalization)
+        if (source.apiUrl.contains("gelbooru.com") || source.id.contains("gelbooru")) {
+            val directory = obj.optString("directory")
+            val image = obj.optString("image")
+            val rawFileUrl = rawImage.ifBlank { obj.optString("file_url") }
+            val rawThumbUrl = rawThumb.ifBlank { obj.optString("preview_url") }
+            val rawSampleUrl = rawSample.ifBlank { obj.optString("sample_url") }
+
+            val full = when {
+                rawFileUrl.isNotBlank() -> fixUrl(rawFileUrl)
+                directory.isNotBlank() && image.isNotBlank() -> "https://img4.gelbooru.com/images/$directory/$image"
+                else -> ""
+            }
+
+            val thumb = when {
+                rawThumbUrl.isNotBlank() && !isVideoUrl(rawThumbUrl) -> fixUrl(rawThumbUrl)
+                directory.isNotBlank() && image.isNotBlank() -> {
+                    val baseName = image.substringBeforeLast('.')
+                    "https://img4.gelbooru.com/thumbnails/$directory/thumbnail_$baseName.jpg"
+                }
+                !isVideoUrl(full) -> full
+                else -> ""
+            }
+
+            val hasSample = obj.optInt("sample", 0) == 1 || obj.optBoolean("sample", false)
+            val sample = when {
+                rawSampleUrl.isNotBlank() -> fixUrl(rawSampleUrl)
+                hasSample && directory.isNotBlank() && image.isNotBlank() -> "https://img4.gelbooru.com/samples/$directory/sample_$image"
+                else -> null
+            }
+
+            if (full.isNotBlank()) {
+                return Triple(full, thumb, sample)
+            }
+        }
+
         // Generic URL resolution consistently respecting configured fields
         val full = fixUrl(rawImage)
         val sample = if (rawSample.isNotBlank()) fixUrl(rawSample) else null
@@ -677,7 +713,8 @@ class MediaApiClient {
         val trimmed = url.trim()
         return when {
             trimmed.startsWith("//") -> "https:$trimmed"
-            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> trimmed
+            trimmed.startsWith("http://") -> "https://" + trimmed.removePrefix("http://")
+            trimmed.startsWith("https://") -> trimmed
             trimmed.isNotBlank() && !trimmed.contains("://") -> "https://$trimmed"
             else -> trimmed
         }

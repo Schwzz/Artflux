@@ -22,10 +22,27 @@ object ArtfluxImageLoader {
                         .connectTimeout(15, TimeUnit.SECONDS)
                         .readTimeout(20, TimeUnit.SECONDS)
                         .addInterceptor { chain ->
-                            val request = chain.request().newBuilder()
-                                .header("User-Agent", "ArtfluxApp/1.0 (Android; BooruDiscovery)")
-                                .build()
-                            chain.proceed(request)
+                            val originalRequest = chain.request()
+                            val host = originalRequest.url.host.lowercase()
+                            val requestBuilder = originalRequest.newBuilder()
+
+                            requestBuilder.header(
+                                "User-Agent",
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                            )
+
+                            // Gelbooru CDN requires Referer header to prevent 403 Forbidden anti-hotlink responses
+                            if (host.contains("gelbooru.com")) {
+                                requestBuilder.header("Referer", "https://gelbooru.com/")
+                            } else if (host.contains("danbooru")) {
+                                requestBuilder.header("Referer", "https://danbooru.donmai.us/")
+                            } else if (host.contains("safebooru.org")) {
+                                requestBuilder.header("Referer", "https://safebooru.org/")
+                            } else if (host.contains("yande.re")) {
+                                requestBuilder.header("Referer", "https://yande.re/")
+                            }
+
+                            chain.proceed(requestBuilder.build())
                         }
                         .build()
                 }

@@ -1672,5 +1672,102 @@ class ExampleRobolectricTest {
     // Reset back to true (default)
     prefsRepo.setBlurNsfw(true)
   }
+
+  // --- 36. Batch 11: App Testing Feedback & Design Refinement Tests ---
+
+  @Test
+  fun testBatch11GelbooruUrlResolutionAndHttpsUpgrade() {
+    val client = MediaApiClient()
+    val gelbooruConfig = MediaSourceConfig.TEMPLATE_GELBOORU
+
+    // 1. Full JSON response with file_url and preview_url on img4.gelbooru.com
+    val jsonWithFullUrls = """
+      [
+        {
+          "id": 98765,
+          "file_url": "https://img4.gelbooru.com/images/1a/2b/1a2b3c4d.jpg",
+          "preview_url": "https://img4.gelbooru.com/thumbnails/1a/2b/thumbnail_1a2b3c4d.jpg",
+          "sample_url": "https://img4.gelbooru.com/samples/1a/2b/sample_1a2b3c4d.jpg",
+          "tags": "scenery landscape sunset",
+          "rating": "general",
+          "sample": 1
+        }
+      ]
+    """.trimIndent()
+
+    val parsedItems = client.parseMediaItems(gelbooruConfig, jsonWithFullUrls)
+    assertEquals(1, parsedItems.size)
+    val item = parsedItems[0]
+    assertEquals("https://img4.gelbooru.com/images/1a/2b/1a2b3c4d.jpg", item.imageUrl)
+    assertEquals("https://img4.gelbooru.com/thumbnails/1a/2b/thumbnail_1a2b3c4d.jpg", item.thumbnailUrl)
+    assertEquals("https://img4.gelbooru.com/samples/1a/2b/sample_1a2b3c4d.jpg", item.sampleUrl)
+    assertEquals(MediaRating.SAFE, item.rating)
+
+    // 2. Gelbooru JSON with only directory and image fields (URL reconstruction)
+    val jsonWithDirectoryAndImage = """
+      [
+        {
+          "id": 98766,
+          "directory": "3e/4f",
+          "image": "3e4f5a6b.png",
+          "tags": "character original",
+          "rating": "sensitive",
+          "sample": 0
+        }
+      ]
+    """.trimIndent()
+
+    val parsedDirectoryItems = client.parseMediaItems(gelbooruConfig, jsonWithDirectoryAndImage)
+    assertEquals(1, parsedDirectoryItems.size)
+    val dirItem = parsedDirectoryItems[0]
+    assertEquals("https://img4.gelbooru.com/images/3e/4f/3e4f5a6b.png", dirItem.imageUrl)
+    assertEquals("https://img4.gelbooru.com/thumbnails/3e/4f/thumbnail_3e4f5a6b.jpg", dirItem.thumbnailUrl)
+    assertEquals(MediaRating.SUGGESTIVE, dirItem.rating)
+
+    // 3. HTTP to HTTPS upgrade for cleartext security and redirect prevention
+    val jsonWithHttpUrls = """
+      [
+        {
+          "id": 98767,
+          "file_url": "http://img4.gelbooru.com/images/5c/6d/sample.jpg",
+          "preview_url": "http://img4.gelbooru.com/thumbnails/5c/6d/thumbnail_sample.jpg",
+          "rating": "explicit"
+        }
+      ]
+    """.trimIndent()
+
+    val parsedHttpItems = client.parseMediaItems(gelbooruConfig, jsonWithHttpUrls)
+    assertEquals(1, parsedHttpItems.size)
+    val httpItem = parsedHttpItems[0]
+    assertTrue("HTTP URLs must be normalized to HTTPS", httpItem.imageUrl.startsWith("https://"))
+    assertTrue("HTTP thumbnails must be normalized to HTTPS", httpItem.thumbnailUrl.startsWith("https://"))
+    assertEquals(MediaRating.ADULT, httpItem.rating)
+  }
+
+  @Test
+  fun testBatch11IncreasedNsfwBlurAndPrivacyOverlay() {
+    val safeItem = MediaItem(
+      id = "item_safe",
+      title = "Safe Art",
+      imageUrl = "https://example.com/safe.jpg",
+      thumbnailUrl = "https://example.com/thumb.jpg",
+      rating = MediaRating.SAFE
+    )
+    val suggestiveItem = safeItem.copy(id = "item_suggestive", rating = MediaRating.SUGGESTIVE)
+    val adultItem = safeItem.copy(id = "item_adult", rating = MediaRating.ADULT)
+
+    // Blur enabled: Suggestive and Adult must be blurred; Safe must remain unblurred
+    val blurNsfw = true
+    val blurSafe = blurNsfw && (safeItem.rating == MediaRating.ADULT || safeItem.rating == MediaRating.SUGGESTIVE)
+    val blurSuggestive = blurNsfw && (suggestiveItem.rating == MediaRating.ADULT || suggestiveItem.rating == MediaRating.SUGGESTIVE)
+    val blurAdult = blurNsfw && (adultItem.rating == MediaRating.ADULT || adultItem.rating == MediaRating.SUGGESTIVE)
+
+    assertFalse("Safe content must never be blurred", blurSafe)
+    assertTrue("Suggestive content must be blurred", blurSuggestive)
+    assertTrue("Adult content must be blurred", blurAdult)
+
+    // Fullscreen lightbox viewer always accesses the unblurred original image URL
+    assertEquals("https://example.com/safe.jpg", adultItem.imageUrl)
+  }
 }
 

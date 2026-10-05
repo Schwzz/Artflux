@@ -163,13 +163,30 @@ fun LightboxViewer(
 
                     val exoPlayer = remember(pageItem.id, isCurrentPage, loopVideo) {
                         if (isCurrentPage) {
-                            ExoPlayer.Builder(context).build().apply {
-                                val media3Item = Media3Item.fromUri(Uri.parse(pageItem.imageUrl))
-                                setMediaItem(media3Item)
-                                repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-                                playWhenReady = true
-                                prepare()
+                            val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+                                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                                .setAllowCrossProtocolRedirects(true)
+                                .setConnectTimeoutMs(15000)
+                                .setReadTimeoutMs(20000)
+
+                            if (pageItem.imageUrl.contains("gelbooru.com")) {
+                                httpDataSourceFactory.setDefaultRequestProperties(mapOf("Referer" to "https://gelbooru.com/"))
+                            } else if (pageItem.imageUrl.contains("danbooru")) {
+                                httpDataSourceFactory.setDefaultRequestProperties(mapOf("Referer" to "https://danbooru.donmai.us/"))
                             }
+
+                            val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+                                .setDataSourceFactory(httpDataSourceFactory)
+
+                            ExoPlayer.Builder(context)
+                                .setMediaSourceFactory(mediaSourceFactory)
+                                .build().apply {
+                                    val media3Item = Media3Item.fromUri(Uri.parse(pageItem.imageUrl))
+                                    setMediaItem(media3Item)
+                                    repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                                    playWhenReady = true
+                                    prepare()
+                                }
                         } else null
                     }
 

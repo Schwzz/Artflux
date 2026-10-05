@@ -111,7 +111,7 @@ fun MediaCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(if (shouldBlur) Modifier.blur(22.dp) else Modifier),
+                        .then(if (shouldBlur) Modifier.blur(48.dp) else Modifier),
                     loading = {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -187,11 +187,11 @@ fun MediaCard(
             }
 
             if (shouldBlur) {
-                // Frosted backdrop overlay for 100% reliable blur and privacy across all Android versions
+                // Frosted backdrop overlay for 100% reliable blur and full privacy across all Android versions
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
                 )
             }
 
