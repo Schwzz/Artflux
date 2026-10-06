@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,11 +37,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Info
@@ -55,6 +58,10 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +73,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,8 +82,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -84,6 +94,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.launch
 import androidx.media3.common.MediaItem as Media3Item
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -132,6 +143,8 @@ fun LightboxViewer(
 
     var showInfoSheet by remember { mutableStateOf(false) }
     var activeZoomScale by remember { mutableFloatStateOf(1f) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(pagerState.currentPage) {
         onIndexChanged(pagerState.currentPage)
@@ -647,7 +660,23 @@ fun LightboxViewer(
                     if (onToggleSave != null) {
                         val currentSaved = isSaved(currentItem.id)
                         IconButton(
-                            onClick = { onToggleSave(currentItem) },
+                            onClick = {
+                                val wasSaved = currentSaved
+                                onToggleSave(currentItem)
+                                if (!wasSaved) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Saved to Saves",
+                                            actionLabel = "Add to Collection",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            onOpenAddToCollection?.invoke(currentItem)
+                                        }
+                                    }
+                                }
+                            },
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
@@ -658,24 +687,6 @@ fun LightboxViewer(
                                 imageVector = if (currentSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                 contentDescription = if (currentSaved) "Unsave artwork" else "Save artwork",
                                 tint = if (currentSaved) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-
-                    // Add to Collection Button
-                    if (onOpenAddToCollection != null) {
-                        IconButton(
-                            onClick = { onOpenAddToCollection(currentItem) },
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .testTag("lightbox_collection_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FolderSpecial,
-                                contentDescription = "Add to collection",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -740,6 +751,14 @@ fun LightboxViewer(
                 }
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = navBarPadding + 84.dp)
+                .testTag("lightbox_snackbar_host")
+        )
 
         // Media Details Panel / Sheet with Visible Dismissal Button
         if (showInfoSheet) {
@@ -878,52 +897,100 @@ fun MediaDetailsSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Title & Author & Post Link
+            val clipboardManager = LocalClipboardManager.current
+
+            // Title & Author & Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp
-                    )
-                    if (!item.author.isNullOrBlank()) {
+                SelectionContainer(modifier = Modifier.weight(1f)) {
+                    Column {
                         Text(
-                            text = "Artist / Author: ${item.author}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 2.dp)
+                            text = item.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
                         )
+                        if (!item.author.isNullOrBlank()) {
+                            Text(
+                                text = "Artist / Author: ${item.author}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        if (!item.description.isNullOrBlank()) {
+                            Text(
+                                text = item.description,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
                     }
                 }
 
-                if (!item.postUrl.isNullOrBlank()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    // Copy action button (Copies ONLY main media details text block)
                     IconButton(
                         onClick = {
-                            try {
-                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(item.postUrl))
-                                context.startActivity(browserIntent)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+                            val copyText = buildString {
+                                append(item.title)
+                                if (!item.author.isNullOrBlank()) {
+                                    append("\nArtist / Author: ").append(item.author)
+                                }
+                                if (!item.description.isNullOrBlank()) {
+                                    append("\n").append(item.description)
+                                }
                             }
+                            clipboardManager.setText(AnnotatedString(copyText))
+                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .testTag("details_open_browser_button")
+                            .testTag("details_copy_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.OpenInBrowser,
-                            contentDescription = "Open post in browser",
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy media details text",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
+                    }
+
+                    if (!item.postUrl.isNullOrBlank()) {
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(item.postUrl))
+                                    context.startActivity(browserIntent)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .testTag("details_open_browser_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInBrowser,
+                                contentDescription = "Open post in browser",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -972,17 +1039,6 @@ fun MediaDetailsSheet(
 
                     MetadataRow(label = "Source", value = item.sourceName)
                 }
-            }
-
-            // Description / Alt text
-            if (!item.description.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = item.description,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
-                )
             }
 
             // Scrollable Tags Section

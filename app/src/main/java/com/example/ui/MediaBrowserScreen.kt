@@ -108,9 +108,12 @@ import com.example.model.Orientation
 import com.example.model.SortOption
 import com.example.model.ThumbnailQuality
 import com.example.ui.components.AddSourceDialog
+import com.example.ui.components.AddToCollectionDialog
+import com.example.ui.components.CollectionDetailScreen
 import com.example.ui.components.DownloadConfigDialog
 import com.example.ui.components.LightboxViewer
 import com.example.ui.components.MediaCard
+import com.example.ui.components.SavesAndCollectionsScreen
 import com.example.ui.components.SourceDiagnosticsDialog
 import com.example.ui.theme.RoseBadge
 
@@ -144,8 +147,15 @@ fun MediaBrowserScreen(
     val downloadTargetItem by viewModel.downloadTargetItem.collectAsStateWithLifecycle()
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
 
+    val savedItems by viewModel.savedItems.collectAsStateWithLifecycle()
+    val savedIds by viewModel.savedIds.collectAsStateWithLifecycle()
+    val collections by viewModel.collections.collectAsStateWithLifecycle()
+    val selectedCollectionId by viewModel.selectedCollectionId.collectAsStateWithLifecycle()
+    val addToCollectionItem by viewModel.addToCollectionItem.collectAsStateWithLifecycle()
+
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
     var isHomeSettingsOpen by remember { mutableStateOf(false) }
+    var isSavesAndCollectionsOpen by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val homeGridState = rememberLazyStaggeredGridState()
@@ -206,86 +216,144 @@ fun MediaBrowserScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            when (currentTab) {
-                MainTab.HOME -> {
-                    HomeScreen(
-                        homeState = homeState,
+            when {
+                selectedCollectionId != null -> {
+                    val selectedCol = collections.find { it.id == selectedCollectionId }
+                    if (selectedCol != null) {
+                        CollectionDetailScreen(
+                            collection = selectedCol,
+                            items = viewModel.getItemsForCollection(selectedCol.id),
+                            thumbnailQuality = thumbnailQuality,
+                            blurNsfw = blurNsfw,
+                            isSaved = { viewModel.isSaved(it) },
+                            onToggleSave = { viewModel.toggleSave(it) },
+                            onRemoveFromCollection = { colId, mediaId ->
+                                val mediaItem = savedItems.find { it.id == mediaId }
+                                if (mediaItem != null) {
+                                    viewModel.toggleMediaInCollection(colId, mediaItem)
+                                }
+                            },
+                            onRenameCollection = { colId, newName ->
+                                viewModel.renameCollection(colId, newName)
+                            },
+                            onDeleteCollection = { colId ->
+                                viewModel.deleteCollection(colId)
+                            },
+                            onBack = { viewModel.clearSelectedCollection() },
+                            onOpenLightbox = { index, itemsList ->
+                                viewModel.openLightbox(index, itemsList)
+                            }
+                        )
+                    } else {
+                        viewModel.clearSelectedCollection()
+                    }
+                }
+                isSavesAndCollectionsOpen -> {
+                    SavesAndCollectionsScreen(
+                        savedItems = savedItems,
+                        collections = collections,
                         thumbnailQuality = thumbnailQuality,
                         blurNsfw = blurNsfw,
-                        gridState = homeGridState,
-                        onOpenFeedSettings = { isHomeSettingsOpen = true },
-                        onRefresh = { viewModel.refreshHome() },
-                        onRetry = { viewModel.refreshHome() },
-                        onResetFilters = {
-                            viewModel.setHomeFilterState(FilterState())
-                            viewModel.refreshHome()
-                        },
-                        onOpenLightbox = { index ->
-                            viewModel.openLightbox(index, homeState.mediaItems)
-                        },
-                        onDownload = { viewModel.promptDownload(it) },
-                        onTagClick = { tag ->
-                            currentTab = MainTab.SEARCH
-                            viewModel.setSearchQuery(tag)
-                            viewModel.executeSearchQuery()
+                        isSaved = { viewModel.isSaved(it) },
+                        onToggleSave = { viewModel.toggleSave(it) },
+                        onCreateCollection = { viewModel.createCollection(it) },
+                        onSelectCollection = { viewModel.selectCollection(it) },
+                        onBack = { isSavesAndCollectionsOpen = false },
+                        onOpenLightbox = { index, itemsList ->
+                            viewModel.openLightbox(index, itemsList)
                         }
                     )
                 }
-                MainTab.SEARCH -> {
-                    SearchScreen(
-                        searchState = searchState,
-                        sources = sources,
-                        thumbnailQuality = thumbnailQuality,
-                        blurNsfw = blurNsfw,
-                        gridState = searchGridState,
-                        onQueryChange = { viewModel.setSearchQuery(it) },
-                        onSearch = { viewModel.executeSearchQuery() },
-                        onFilterChange = { viewModel.setSearchFilterState(it) },
-                        onSelectSource = { viewModel.setSearchSource(it) },
-                        onOpenPicker = { viewModel.openSourcePicker("search") },
-                        onRefresh = { viewModel.refreshSearch() },
-                        onRetry = { viewModel.refreshSearch() },
-                        onResetFilters = {
-                            viewModel.setSearchQuery("")
-                            viewModel.setSearchFilterState(FilterState())
-                            viewModel.executeSearchQuery()
-                        },
-                        onOpenLightbox = { index ->
-                            viewModel.openLightbox(index, searchState.mediaItems)
-                        },
-                        onDownload = { viewModel.promptDownload(it) },
-                        onTagClick = { tag ->
-                            viewModel.setSearchQuery(tag)
-                            viewModel.executeSearchQuery()
+                else -> {
+                    when (currentTab) {
+                        MainTab.HOME -> {
+                            HomeScreen(
+                                homeState = homeState,
+                                thumbnailQuality = thumbnailQuality,
+                                blurNsfw = blurNsfw,
+                                gridState = homeGridState,
+                                onOpenFeedSettings = { isHomeSettingsOpen = true },
+                                onRefresh = { viewModel.refreshHome() },
+                                onRetry = { viewModel.refreshHome() },
+                                onResetFilters = {
+                                    viewModel.setHomeFilterState(FilterState())
+                                    viewModel.refreshHome()
+                                },
+                                onOpenLightbox = { index ->
+                                    viewModel.openLightbox(index, homeState.mediaItems)
+                                },
+                                onDownload = { viewModel.promptDownload(it) },
+                                onTagClick = { tag ->
+                                    currentTab = MainTab.SEARCH
+                                    viewModel.setSearchQuery(tag)
+                                    viewModel.executeSearchQuery()
+                                },
+                                savedIds = savedIds,
+                                onToggleSave = { viewModel.toggleSave(it) }
+                            )
                         }
-                    )
-                }
-                MainTab.SETTINGS -> {
-                    val context = androidx.compose.ui.platform.LocalContext.current
-                    SettingsScreen(
-                        sources = sources,
-                        theme = theme,
-                        onThemeChange = { viewModel.setTheme(it) },
-                        colorPalette = colorPalette,
-                        onColorPaletteChange = { viewModel.setColorPalette(it) },
-                        blurNsfw = blurNsfw,
-                        onBlurNsfwChange = { viewModel.setBlurNsfw(it) },
-                        thumbnailQuality = thumbnailQuality,
-                        onThumbnailQualityChange = { viewModel.setThumbnailQuality(it) },
-                        loopVideo = loopVideo,
-                        onLoopVideoChange = { viewModel.setLoopVideoPlayback(it) },
-                        onAddSourceClick = { viewModel.openAddSourceDialog(null) },
-                        onEditSource = { viewModel.openAddSourceDialog(it) },
-                        onCopySource = { viewModel.duplicateSource(it) },
-                        onTestSource = { viewModel.openSourceDiagnostics(it) },
-                        onExportSource = { source ->
-                            val json = viewModel.exportSourceConfig(source)
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("${source.name} Config", json)
-                            clipboard?.setPrimaryClip(clip)
-                        },
-                        onDeleteSource = { viewModel.deleteSource(it) }
-                    )
+                        MainTab.SEARCH -> {
+                            SearchScreen(
+                                searchState = searchState,
+                                sources = sources,
+                                thumbnailQuality = thumbnailQuality,
+                                blurNsfw = blurNsfw,
+                                gridState = searchGridState,
+                                onQueryChange = { viewModel.setSearchQuery(it) },
+                                onSearch = { viewModel.executeSearchQuery() },
+                                onFilterChange = { viewModel.setSearchFilterState(it) },
+                                onSelectSource = { viewModel.setSearchSource(it) },
+                                onOpenPicker = { viewModel.openSourcePicker("search") },
+                                onRefresh = { viewModel.refreshSearch() },
+                                onRetry = { viewModel.refreshSearch() },
+                                onResetFilters = {
+                                    viewModel.setSearchQuery("")
+                                    viewModel.setSearchFilterState(FilterState())
+                                    viewModel.executeSearchQuery()
+                                },
+                                onOpenLightbox = { index ->
+                                    viewModel.openLightbox(index, searchState.mediaItems)
+                                },
+                                onDownload = { viewModel.promptDownload(it) },
+                                onTagClick = { tag ->
+                                    viewModel.setSearchQuery(tag)
+                                    viewModel.executeSearchQuery()
+                                },
+                                savedIds = savedIds,
+                                onToggleSave = { viewModel.toggleSave(it) }
+                            )
+                        }
+                        MainTab.SETTINGS -> {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            SettingsScreen(
+                                sources = sources,
+                                theme = theme,
+                                onThemeChange = { viewModel.setTheme(it) },
+                                colorPalette = colorPalette,
+                                onColorPaletteChange = { viewModel.setColorPalette(it) },
+                                blurNsfw = blurNsfw,
+                                onBlurNsfwChange = { viewModel.setBlurNsfw(it) },
+                                thumbnailQuality = thumbnailQuality,
+                                onThumbnailQualityChange = { viewModel.setThumbnailQuality(it) },
+                                loopVideo = loopVideo,
+                                onLoopVideoChange = { viewModel.setLoopVideoPlayback(it) },
+                                onAddSourceClick = { viewModel.openAddSourceDialog(null) },
+                                onEditSource = { viewModel.openAddSourceDialog(it) },
+                                onCopySource = { viewModel.duplicateSource(it) },
+                                onTestSource = { viewModel.openSourceDiagnostics(it) },
+                                onExportSource = { source ->
+                                    val json = viewModel.exportSourceConfig(source)
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("${source.name} Config", json)
+                                    clipboard?.setPrimaryClip(clip)
+                                },
+                                onDeleteSource = { viewModel.deleteSource(it) },
+                                savedCount = savedItems.size,
+                                collectionsCount = collections.size,
+                                onOpenSavesAndCollections = { isSavesAndCollectionsOpen = true }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -301,6 +369,17 @@ fun MediaBrowserScreen(
             onDismiss = {
                 viewModel.dismissDownloadPrompt()
             }
+        )
+    }
+
+    // Add to Collection Dialog overlay
+    addToCollectionItem?.let { item ->
+        AddToCollectionDialog(
+            mediaItem = item,
+            collections = collections,
+            onToggleCollection = { colId, media -> viewModel.toggleMediaInCollection(colId, media) },
+            onCreateCollection = { name -> viewModel.createCollection(name) },
+            onDismiss = { viewModel.closeAddToCollectionDialog() }
         )
     }
 
@@ -383,7 +462,10 @@ fun MediaBrowserScreen(
                     currentTab = MainTab.SEARCH
                     viewModel.setSearchQuery(tag)
                     viewModel.executeSearchQuery()
-                }
+                },
+                isSaved = { viewModel.isSaved(it) },
+                onToggleSave = { viewModel.toggleSave(it) },
+                onOpenAddToCollection = { viewModel.openAddToCollectionDialog(it) }
             )
         }
     }
@@ -456,7 +538,9 @@ fun HomeScreen(
     onResetFilters: () -> Unit,
     onOpenLightbox: (Int) -> Unit,
     onDownload: (MediaItem) -> Unit,
-    onTagClick: (String) -> Unit
+    onTagClick: (String) -> Unit,
+    savedIds: Set<String> = emptySet(),
+    onToggleSave: ((MediaItem) -> Unit)? = null
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -580,6 +664,8 @@ fun HomeScreen(
                                     item = item,
                                     quality = thumbnailQuality,
                                     blurNsfw = blurNsfw,
+                                    isSaved = savedIds.contains(item.id),
+                                    onToggleSave = { onToggleSave?.invoke(item) },
                                     onClick = { onOpenLightbox(index) },
                                     onDownloadClick = { onDownload(item) },
                                     onTagClick = onTagClick
@@ -628,7 +714,9 @@ fun SearchScreen(
     onResetFilters: () -> Unit,
     onOpenLightbox: (Int) -> Unit,
     onDownload: (MediaItem) -> Unit,
-    onTagClick: (String) -> Unit
+    onTagClick: (String) -> Unit,
+    savedIds: Set<String> = emptySet(),
+    onToggleSave: ((MediaItem) -> Unit)? = null
 ) {
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isFilterSheetOpen by remember { mutableStateOf(false) }
@@ -888,6 +976,8 @@ fun SearchScreen(
                                     item = item,
                                     quality = thumbnailQuality,
                                     blurNsfw = blurNsfw,
+                                    isSaved = savedIds.contains(item.id),
+                                    onToggleSave = { onToggleSave?.invoke(item) },
                                     onClick = { onOpenLightbox(index) },
                                     onDownloadClick = { onDownload(item) },
                                     onTagClick = onTagClick

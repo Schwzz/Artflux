@@ -18,7 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
@@ -92,6 +97,9 @@ fun SettingsScreen(
     onTestSource: (MediaSourceConfig) -> Unit = {},
     onExportSource: (MediaSourceConfig) -> Unit = {},
     onDeleteSource: (String) -> Unit = {},
+    savedCount: Int = 0,
+    collectionsCount: Int = 0,
+    onOpenSavesAndCollections: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isSourceConfigsExpanded by remember { mutableStateOf(true) }
@@ -112,6 +120,63 @@ fun SettingsScreen(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 20.dp)
         )
+
+        // Saves & Collections Entry
+        SettingsSectionHeader(title = "Saves & Collections", icon = Icons.Default.Bookmark)
+        SettingsCard {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenSavesAndCollections() }
+                    .padding(16.dp)
+                    .testTag("settings_saves_collections_entry"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderSpecial,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Saves & Collections",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "$savedCount saved artwork • $collectionsCount collections",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "Open Saves and Collections",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // 1. Section: Appearance (Theme & Color Palette)
         SettingsSectionHeader(title = "Appearance", icon = Icons.Default.Palette)

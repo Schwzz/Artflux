@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -67,6 +68,10 @@ fun CollectionDetailScreen(
     var isRenaming by remember { mutableStateOf(false) }
     var renameText by remember(collection.name) { mutableStateOf(collection.name) }
     var isConfirmingDelete by remember { mutableStateOf(false) }
+
+    androidx.activity.compose.BackHandler {
+        onBack()
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header Bar
@@ -179,14 +184,33 @@ fun CollectionDetailScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                    MediaCard(
-                        item = item,
-                        onClick = { onOpenLightbox(index, items) },
-                        quality = thumbnailQuality,
-                        blurNsfw = blurNsfw,
-                        isSaved = isSaved(item.id),
-                        onToggleSave = { onToggleSave(item) }
-                    )
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        MediaCard(
+                            item = item,
+                            onClick = { onOpenLightbox(index, items) },
+                            quality = thumbnailQuality,
+                            blurNsfw = blurNsfw,
+                            isSaved = isSaved(item.id),
+                            onToggleSave = { onToggleSave(item) }
+                        )
+                        IconButton(
+                            onClick = { onRemoveFromCollection(collection.id, item.id) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                .testTag("remove_from_collection_${item.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove from collection",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
