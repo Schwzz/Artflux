@@ -399,9 +399,15 @@ class MediaApiClient {
         val (finalImage, finalThumb, finalSample) = resolveUrls(source, obj, rawImage, rawThumb, rawSample)
         if (finalImage.isBlank()) return null
 
-        val id = extractValue(obj, "id").ifBlank { "item-${source.id}-$index" }
+        val id = extractValue(obj, "id").ifBlank {
+            extractValue(obj, "image_id").ifBlank {
+                extractValue(obj, "signature").ifBlank { "item-${source.id}-$index" }
+            }
+        }
         val title = extractValue(obj, source.titleField).ifBlank {
-            extractValue(obj, "name").ifBlank { "Art #$id" }
+            extractValue(obj, "signature").ifBlank {
+                extractValue(obj, "name").ifBlank { "Art #$id" }
+            }
         }
 
         val postUrl = when {
@@ -510,6 +516,8 @@ class MediaApiClient {
             if (ratingStr.isNullOrBlank()) return MediaRating.UNKNOWN
             val r = ratingStr.lowercase().trim()
             return when {
+                r == "false" || r == "sfw" -> MediaRating.SAFE
+                r == "true" -> MediaRating.ADULT
                 isDanbooru && (r == "g" || r == "general") -> MediaRating.SAFE
                 isDanbooru && (r == "s" || r == "sensitive" || r == "q" || r == "questionable") -> MediaRating.SUGGESTIVE
                 isDanbooru && (r == "e" || r == "explicit") -> MediaRating.ADULT

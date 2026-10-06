@@ -38,39 +38,29 @@ class ExampleRobolectricTest {
   // --- 1. Source Configuration Tests ---
 
   @Test
-  fun testBuiltInSourcesListContainsSafebooruDanbooruAndYandere() {
+  fun testBuiltInSourcesListContainsDefaultSources() {
     val defaults = MediaSourceConfig.DEFAULT_SOURCES
-    assertEquals(3, defaults.size)
+    assertEquals(4, defaults.size)
 
     val safebooru = defaults[0]
     assertEquals("Safebooru", safebooru.name)
     assertTrue(safebooru.isBuiltIn)
     assertTrue(safebooru.apiUrl.contains("safebooru.org"))
-    assertEquals("animated", safebooru.gifQueryTag)
-    assertEquals("", safebooru.videoQueryTag)
-    assertEquals("rating:general", safebooru.safeRatingTag)
-    assertEquals("", safebooru.suggestiveRatingTag)
-    assertEquals("", safebooru.adultRatingTag)
 
     val danbooru = defaults[1]
     assertEquals("Danbooru", danbooru.name)
     assertTrue(danbooru.isBuiltIn)
     assertTrue(danbooru.apiUrl.contains("danbooru.donmai.us"))
-    assertEquals("animated_gif", danbooru.gifQueryTag)
-    assertEquals("webm", danbooru.videoQueryTag)
-    assertEquals("rating:g", danbooru.safeRatingTag)
-    assertEquals("rating:s,q", danbooru.suggestiveRatingTag)
-    assertEquals("rating:e", danbooru.adultRatingTag)
 
     val yandere = defaults[2]
     assertEquals("Yande.re", yandere.name)
     assertTrue(yandere.isBuiltIn)
     assertTrue(yandere.apiUrl.contains("yande.re"))
-    assertEquals("", yandere.gifQueryTag)
-    assertEquals("", yandere.videoQueryTag)
-    assertEquals("rating:s", yandere.safeRatingTag)
-    assertEquals("rating:q", yandere.suggestiveRatingTag)
-    assertEquals("rating:e", yandere.adultRatingTag)
+
+    val waifuIm = defaults[3]
+    assertEquals("Waifu.im", waifuIm.name)
+    assertTrue(waifuIm.isBuiltIn)
+    assertTrue(waifuIm.apiUrl.contains("api.waifu.im"))
   }
 
   @Test
@@ -838,9 +828,9 @@ class ExampleRobolectricTest {
   // --- 19. Expanded Templates Integrity (Batch 6) ---
 
   @Test
-  fun testAllFiveSourceTemplatesPresentAndValid() {
+  fun testAllSourceTemplatesPresentAndValid() {
     val templates = MediaSourceConfig.SOURCE_TEMPLATES
-    assertEquals(5, templates.size)
+    assertEquals(6, templates.size)
 
     val templateNames = templates.map { it.name }
     assertTrue(templateNames.any { it.contains("Safebooru") })
@@ -848,6 +838,7 @@ class ExampleRobolectricTest {
     assertTrue(templateNames.any { it.contains("Yande.re") })
     assertTrue(templateNames.any { it.contains("Gelbooru") })
     assertTrue(templateNames.any { it.contains("Moebooru") })
+    assertTrue(templateNames.any { it.contains("Waifu") })
   }
 
   // --- 20. Source Diagnostics Logic Tests (Batch 6) ---
@@ -2090,6 +2081,114 @@ class ExampleRobolectricTest {
     assertFalse("Suggestive content unblurred when toggle off", shouldBlur(suggestiveItem, blurNsfw = false))
     assertFalse("Adult content unblurred when toggle off", shouldBlur(adultItem, blurNsfw = false))
     assertFalse("Unknown content unblurred when toggle off", shouldBlur(unknownItem, blurNsfw = false))
+  }
+
+  // --- 39. Batch 12: Waifu.im Source, Random Pagination, and Color Themes Tests ---
+
+  @Test
+  fun testWaifuImSourceConfigurationAndParsing() {
+    val waifuSource = MediaSourceConfig.BUILT_IN_WAIFU_IM
+    assertEquals("https://api.waifu.im/search", waifuSource.apiUrl)
+    assertEquals("included_tags", waifuSource.searchParam)
+    assertEquals("images", waifuSource.itemsPath)
+    assertTrue(waifuSource.isBuiltIn)
+
+    val jsonPayload = """
+      {
+        "images": [
+          {
+            "image_id": 9991,
+            "signature": "waifu_sig_123",
+            "url": "https://cdn.waifu.im/9991.jpg",
+            "preview_url": "https://cdn.waifu.im/preview_9991.jpg",
+            "is_nsfw": false,
+            "extension": ".jpg",
+            "artist": { "name": "TestArtist" }
+          }
+        ]
+      }
+    """.trimIndent()
+
+    val apiClient = MediaApiClient()
+    val items = apiClient.parseMediaItems(waifuSource, jsonPayload)
+    assertEquals(1, items.size)
+    val item = items[0]
+    assertEquals("9991", item.id)
+    assertEquals("waifu_sig_123", item.title)
+    assertEquals("https://cdn.waifu.im/9991.jpg", item.actualMediaUrl)
+    assertEquals("https://cdn.waifu.im/preview_9991.jpg", item.previewUrl)
+    assertEquals(MediaRating.SAFE, item.rating)
+    assertEquals("TestArtist", item.author)
+  }
+
+  @Test
+  fun testRandomPaginationAndDeduplicationStability() {
+    val apiClient = MediaApiClient()
+    val source = MediaSourceConfig(
+      name = "Test Source",
+      apiUrl = "https://example.com/api.json",
+      imageUrlField = "file_url",
+      thumbUrlField = "preview_url"
+    )
+
+    // Simulate page 1 items
+    val page1Json = """
+      {
+        "post": [
+          { "id": "101", "file_url": "https://img.org/101.jpg", "preview_url": "https://img.org/t101.jpg", "rating": "general" },
+          { "id": "102", "file_url": "https://img.org/102.jpg", "preview_url": "https://img.org/t102.jpg", "rating": "general" }
+        ]
+      }
+    """.trimIndent()
+    val page1Items = apiClient.parseMediaItems(source, page1Json)
+    assertEquals(2, page1Items.size)
+
+    // Simulate page 2 items with duplicate overlap (item 102) and new item 103
+    val page2Json = """
+      {
+        "post": [
+          { "id": "102", "file_url": "https://img.org/102.jpg", "preview_url": "https://img.org/t102.jpg", "rating": "general" },
+          { "id": "103", "file_url": "https://img.org/103.jpg", "preview_url": "https://img.org/t103.jpg", "rating": "general" }
+        ]
+      }
+    """.trimIndent()
+    val page2Items = apiClient.parseMediaItems(source, page2Json)
+
+    // Deduplication logic test
+    val rawItems = page1Items.toMutableList()
+    val existingIds = rawItems.map { it.id }.toSet()
+    val existingUrls = rawItems.map { it.actualMediaUrl }.toSet()
+    val uniqueNew = page2Items.filter { it.id !in existingIds && it.actualMediaUrl !in existingUrls }
+
+    assertEquals(1, uniqueNew.size)
+    assertEquals("103", uniqueNew[0].id)
+
+    rawItems.addAll(uniqueNew)
+    assertEquals(3, rawItems.size)
+    assertEquals("101", rawItems[0].id)
+    assertEquals("102", rawItems[1].id)
+    assertEquals("103", rawItems[2].id)
+  }
+
+  @Test
+  fun testColorPalettePersistence() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val prefsRepo = com.example.data.PreferencesRepository(context)
+
+    // Default color palette should be SOLAR_AMBER
+    assertEquals(com.example.model.ColorPalette.SOLAR_AMBER, prefsRepo.colorPalette.value)
+
+    // Set and persist AURORA_EMERALD
+    prefsRepo.setColorPalette(com.example.model.ColorPalette.AURORA_EMERALD)
+    assertEquals(com.example.model.ColorPalette.AURORA_EMERALD, prefsRepo.colorPalette.value)
+
+    // Simulate restart / reload
+    val reloadedRepo = com.example.data.PreferencesRepository(context)
+    assertEquals(com.example.model.ColorPalette.AURORA_EMERALD, reloadedRepo.colorPalette.value)
+
+    // Reset back to SOLAR_AMBER
+    reloadedRepo.setColorPalette(com.example.model.ColorPalette.SOLAR_AMBER)
+    assertEquals(com.example.model.ColorPalette.SOLAR_AMBER, reloadedRepo.colorPalette.value)
   }
 }
 

@@ -67,6 +67,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppTheme
+import com.example.model.ColorPalette
 import com.example.model.MediaSourceConfig
 import com.example.model.ThumbnailQuality
 import com.example.ui.theme.CardBorder
@@ -88,6 +89,8 @@ fun SettingsScreen(
     sources: List<MediaSourceConfig>,
     theme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
+    colorPalette: ColorPalette = ColorPalette.SOLAR_AMBER,
+    onColorPaletteChange: (ColorPalette) -> Unit = {},
     blurNsfw: Boolean,
     onBlurNsfwChange: (Boolean) -> Unit,
     thumbnailQuality: ThumbnailQuality,
@@ -121,7 +124,7 @@ fun SettingsScreen(
             modifier = Modifier.padding(bottom = 20.dp)
         )
 
-        // 1. Section: Appearance (Theme only)
+        // 1. Section: Appearance (Theme & Color Palette)
         SettingsSectionHeader(title = "Appearance", icon = Icons.Default.Palette)
         SettingsCard {
             Column(
@@ -130,10 +133,95 @@ fun SettingsScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Color Theme Selector: Solar Amber vs Aurora Emerald
+                Column {
+                    Text(
+                        text = "Color Theme",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "Select official curated accent palette",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Solar Amber Option
+                        val isAmber = colorPalette == ColorPalette.SOLAR_AMBER
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isAmber) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isAmber) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onColorPaletteChange(ColorPalette.SOLAR_AMBER) }
+                                .padding(vertical = 12.dp, horizontal = 8.dp)
+                                .testTag("theme_palette_amber"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Solar Amber",
+                                    color = if (isAmber) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isAmber) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    text = "Warm Amber",
+                                    color = if (isAmber) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+
+                        // Aurora Emerald Option
+                        val isEmerald = colorPalette == ColorPalette.AURORA_EMERALD
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isEmerald) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isEmerald) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onColorPaletteChange(ColorPalette.AURORA_EMERALD) }
+                                .padding(vertical = 12.dp, horizontal = 8.dp)
+                                .testTag("theme_palette_emerald"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Aurora Emerald",
+                                    color = if (isEmerald) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isEmerald) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    text = "Vibrant Mint",
+                                    color = if (isEmerald) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Theme Selector: Light vs Dark
                 Column {
                     Text(
-                        text = "Theme",
+                        text = "Interface Mode",
                         color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp

@@ -3,6 +3,7 @@ package com.example.data
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.model.AppTheme
+import com.example.model.ColorPalette
 import com.example.model.ThumbnailQuality
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,22 @@ class PreferencesRepository(context: Context) {
     private val _theme = MutableStateFlow(initialTheme)
     val theme: StateFlow<AppTheme> = _theme.asStateFlow()
 
+    private val initialColorPalette: ColorPalette = run {
+        val saved = prefs.getString(KEY_COLOR_PALETTE, null)
+        if (saved != null) {
+            try {
+                ColorPalette.valueOf(saved)
+            } catch (e: Exception) {
+                ColorPalette.DEFAULT
+            }
+        } else {
+            ColorPalette.DEFAULT
+        }
+    }
+
+    private val _colorPalette = MutableStateFlow(initialColorPalette)
+    val colorPalette: StateFlow<ColorPalette> = _colorPalette.asStateFlow()
+
     private val _blurNsfw = MutableStateFlow(prefs.getBoolean(KEY_BLUR_NSFW, true))
     val blurNsfw: StateFlow<Boolean> = _blurNsfw.asStateFlow()
 
@@ -50,6 +67,11 @@ class PreferencesRepository(context: Context) {
         _theme.value = theme
     }
 
+    fun setColorPalette(palette: ColorPalette) {
+        prefs.edit().putString(KEY_COLOR_PALETTE, palette.name).apply()
+        _colorPalette.value = palette
+    }
+
     fun setBlurNsfw(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_BLUR_NSFW, enabled).apply()
         _blurNsfw.value = enabled
@@ -67,6 +89,7 @@ class PreferencesRepository(context: Context) {
 
     companion object {
         private const val KEY_APP_THEME = "app_theme"
+        private const val KEY_COLOR_PALETTE = "color_palette"
         private const val KEY_BLUR_NSFW = "blur_nsfw_content"
         private const val KEY_THUMBNAIL_QUALITY = "thumbnail_quality"
         private const val KEY_LOOP_VIDEO = "loop_video_playback"

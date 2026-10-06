@@ -1,61 +1,104 @@
 package com.example.ui.theme
 
 import android.app.Activity
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.example.model.AppTheme
+import com.example.model.ColorPalette
 
-private val DarkColorScheme = darkColorScheme(
-    primary = NeonIndigo,
-    onPrimary = TextPrimary,
-    primaryContainer = NeonIndigoDark,
-    onPrimaryContainer = NeonIndigoLight,
-    secondary = CyanAccent,
-    onSecondary = DarkBackground,
-    secondaryContainer = CyanAccentDark,
-    onSecondaryContainer = CyanAccentLight,
-    tertiary = MagentaAccent,
-    background = DarkBackground,
-    onBackground = TextPrimary,
-    surface = DarkSurface,
-    onSurface = TextPrimary,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = TextSecondary,
-    outline = CardBorder
+private val SolarAmberDarkColorScheme = darkColorScheme(
+    primary = SolarAmberPrimaryDark,
+    onPrimary = SolarAmberOnPrimaryDark,
+    primaryContainer = SolarAmberPrimaryContainerDark,
+    onPrimaryContainer = SolarAmberOnPrimaryContainerDark,
+    secondary = SolarAmberSecondaryDark,
+    onSecondary = SolarAmberOnSecondaryDark,
+    secondaryContainer = SolarAmberSecondaryContainerDark,
+    onSecondaryContainer = SolarAmberOnSecondaryContainerDark,
+    tertiary = SolarAmberTertiaryDark,
+    background = SolarAmberBackgroundDark,
+    onBackground = TextPrimaryDark,
+    surface = SolarAmberSurfaceDark,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = SolarAmberSurfaceVariantDark,
+    onSurfaceVariant = TextSecondaryDark,
+    outline = SolarAmberOutlineDark
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = NeonIndigo,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFEEF2FF),
-    onPrimaryContainer = Color(0xFF312E81),
-    secondary = Color(0xFF0284C7),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE0F2FE),
-    onSecondaryContainer = Color(0xFF0369A1),
-    tertiary = Color(0xFFD946EF),
-    background = Color(0xFFF8FAFC),
-    onBackground = Color(0xFF0F172A),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF0F172A),
-    surfaceVariant = Color(0xFFF1F5F9),
-    onSurfaceVariant = Color(0xFF475569),
-    outline = Color(0xFFCBD5E1)
+private val SolarAmberLightColorScheme = lightColorScheme(
+    primary = SolarAmberPrimaryLight,
+    onPrimary = SolarAmberOnPrimaryLight,
+    primaryContainer = SolarAmberPrimaryContainerLight,
+    onPrimaryContainer = SolarAmberOnPrimaryContainerLight,
+    secondary = SolarAmberSecondaryLight,
+    onSecondary = SolarAmberOnSecondaryLight,
+    secondaryContainer = SolarAmberSecondaryContainerLight,
+    onSecondaryContainer = SolarAmberOnSecondaryContainerLight,
+    tertiary = SolarAmberTertiaryLight,
+    background = SolarAmberBackgroundLight,
+    onBackground = TextPrimaryLight,
+    surface = SolarAmberSurfaceLight,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = SolarAmberSurfaceVariantLight,
+    onSurfaceVariant = TextSecondaryLight,
+    outline = SolarAmberOutlineLight
+)
+
+private val AuroraEmeraldDarkColorScheme = darkColorScheme(
+    primary = AuroraEmeraldPrimaryDark,
+    onPrimary = AuroraEmeraldOnPrimaryDark,
+    primaryContainer = AuroraEmeraldPrimaryContainerDark,
+    onPrimaryContainer = AuroraEmeraldOnPrimaryContainerDark,
+    secondary = AuroraEmeraldSecondaryDark,
+    onSecondary = AuroraEmeraldOnSecondaryDark,
+    secondaryContainer = AuroraEmeraldSecondaryContainerDark,
+    onSecondaryContainer = AuroraEmeraldOnSecondaryContainerDark,
+    tertiary = AuroraEmeraldTertiaryDark,
+    background = AuroraEmeraldBackgroundDark,
+    onBackground = TextPrimaryDark,
+    surface = AuroraEmeraldSurfaceDark,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = AuroraEmeraldSurfaceVariantDark,
+    onSurfaceVariant = TextSecondaryDark,
+    outline = AuroraEmeraldOutlineDark
+)
+
+private val AuroraEmeraldLightColorScheme = lightColorScheme(
+    primary = AuroraEmeraldPrimaryLight,
+    onPrimary = AuroraEmeraldOnPrimaryLight,
+    primaryContainer = AuroraEmeraldPrimaryContainerLight,
+    onPrimaryContainer = AuroraEmeraldOnPrimaryContainerLight,
+    secondary = AuroraEmeraldSecondaryLight,
+    onSecondary = AuroraEmeraldOnSecondaryLight,
+    secondaryContainer = AuroraEmeraldSecondaryContainerLight,
+    onSecondaryContainer = AuroraEmeraldOnSecondaryContainerLight,
+    tertiary = AuroraEmeraldTertiaryLight,
+    background = AuroraEmeraldBackgroundLight,
+    onBackground = TextPrimaryLight,
+    surface = AuroraEmeraldSurfaceLight,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = AuroraEmeraldSurfaceVariantLight,
+    onSurfaceVariant = TextSecondaryLight,
+    outline = AuroraEmeraldOutlineLight
 )
 
 @Composable
 fun MediaBrowserTheme(
     theme: AppTheme = AppTheme.DARK,
+    colorPalette: ColorPalette = ColorPalette.SOLAR_AMBER,
     content: @Composable () -> Unit
 ) {
     val isLight = theme == AppTheme.LIGHT
-    val colorScheme = if (isLight) LightColorScheme else DarkColorScheme
+    val colorScheme: ColorScheme = when (colorPalette) {
+        ColorPalette.SOLAR_AMBER -> if (isLight) SolarAmberLightColorScheme else SolarAmberDarkColorScheme
+        ColorPalette.AURORA_EMERALD -> if (isLight) AuroraEmeraldLightColorScheme else AuroraEmeraldDarkColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {

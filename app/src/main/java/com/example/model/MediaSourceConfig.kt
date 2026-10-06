@@ -586,13 +586,66 @@ RULES:
             adultRatingTag = "rating:e"
         )
 
+        val BUILT_IN_WAIFU_IM = MediaSourceConfig(
+            id = "builtin_waifu_im",
+            name = "Waifu.im",
+            apiUrl = "https://api.waifu.im/search",
+            searchParam = "included_tags",
+            pageParam = "page",
+            pageStartsAt = 1,
+            pageSizeParam = "limit",
+            defaultPageSize = 25,
+            itemsPath = "images",
+            imageUrlField = "url",
+            thumbUrlField = "preview_url",
+            sampleUrlField = "url",
+            postUrlField = "source",
+            tagsField = "tags",
+            ratingField = "is_nsfw",
+            mediaTypeField = "extension",
+            titleField = "signature",
+            authorField = "artist.name",
+            isBuiltIn = true,
+            description = "Curated anime illustration archive with tags and high-resolution artwork",
+            gifQueryTag = "gif",
+            videoQueryTag = "",
+            safeRatingTag = "",
+            suggestiveRatingTag = "",
+            adultRatingTag = ""
+        )
+
         val DEFAULT_SOURCES = listOf(
             BUILT_IN_SAFEBOORU,
             BUILT_IN_DANBOORU,
-            BUILT_IN_YANDERE
+            BUILT_IN_YANDERE,
+            BUILT_IN_WAIFU_IM
         )
 
         // --- EXPANDED SOURCE TEMPLATES ---
+
+        val TEMPLATE_WAIFU_IM = MediaSourceConfig(
+            name = "Waifu.im API",
+            apiUrl = "https://api.waifu.im/search",
+            searchParam = "included_tags",
+            pageParam = "page",
+            pageStartsAt = 1,
+            pageSizeParam = "limit",
+            defaultPageSize = 25,
+            itemsPath = "images",
+            imageUrlField = "url",
+            thumbUrlField = "preview_url",
+            sampleUrlField = "url",
+            postUrlField = "source",
+            tagsField = "tags",
+            ratingField = "is_nsfw",
+            mediaTypeField = "extension",
+            gifQueryTag = "gif",
+            videoQueryTag = "",
+            safeRatingTag = "",
+            suggestiveRatingTag = "",
+            adultRatingTag = "",
+            description = "Curated anime illustration API supporting tag search and high-resolution images."
+        )
 
         val TEMPLATE_SAFEBOORU = MediaSourceConfig(
             name = "Safebooru XML/JSON API",
@@ -723,7 +776,8 @@ RULES:
             TEMPLATE_DANBOORU,
             TEMPLATE_YANDERE,
             TEMPLATE_GELBOORU,
-            TEMPLATE_MOEBOORU
+            TEMPLATE_MOEBOORU,
+            TEMPLATE_WAIFU_IM
         )
     }
 }

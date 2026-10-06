@@ -66,6 +66,15 @@ enum class AppTheme(val label: String) {
     }
 }
 
+enum class ColorPalette(val label: String, val subtitle: String) {
+    SOLAR_AMBER("Solar Amber", "Warm golden amber & sunset coral"),
+    AURORA_EMERALD("Aurora Emerald", "Luminous emerald & arctic mint");
+
+    companion object {
+        val DEFAULT = SOLAR_AMBER
+    }
+}
+
 data class FilterState(
     val sort: SortOption = SortOption.LATEST,
     val rating: MediaRating = MediaRating.ALL,

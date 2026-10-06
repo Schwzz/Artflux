@@ -21,7 +21,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val theme by viewModel.theme.collectAsStateWithLifecycle()
-            MediaBrowserTheme(theme = theme) {
+            val colorPalette by viewModel.colorPalette.collectAsStateWithLifecycle()
+            MediaBrowserTheme(theme = theme, colorPalette = colorPalette) {
                 MediaBrowserScreen(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()

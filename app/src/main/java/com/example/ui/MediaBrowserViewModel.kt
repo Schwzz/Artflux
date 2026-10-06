@@ -11,6 +11,7 @@ import com.example.data.MediaApiClient
 import com.example.data.PreferencesRepository
 import com.example.data.SourceRepository
 import com.example.model.AppTheme
+import com.example.model.ColorPalette
 import com.example.model.DownloadQuality
 import com.example.model.FilterState
 import com.example.model.MediaItem
@@ -51,6 +52,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     // --- Preferences (Persistent) ---
     val theme: StateFlow<AppTheme> = preferencesRepository.theme
+    val colorPalette: StateFlow<ColorPalette> = preferencesRepository.colorPalette
     val blurNsfw: StateFlow<Boolean> = preferencesRepository.blurNsfw
     val thumbnailQuality: StateFlow<ThumbnailQuality> = preferencesRepository.thumbnailQuality
     val loopVideoPlayback: StateFlow<Boolean> = preferencesRepository.loopVideo
@@ -149,6 +151,10 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     fun setTheme(newTheme: AppTheme) {
         preferencesRepository.setTheme(newTheme)
+    }
+
+    fun setColorPalette(palette: ColorPalette) {
+        preferencesRepository.setColorPalette(palette)
     }
 
     fun setBlurNsfw(enabled: Boolean) {
@@ -318,18 +324,30 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
             val result = apiClient.fetchMedia(stateNow.activeSource, effectiveQuery, pageToFetch)
 
             result.onSuccess { newItems ->
+                val existingIds = stateNow.rawItems.map { it.id }.toSet()
+                val existingUrls = stateNow.rawItems.map { it.actualMediaUrl }.toSet()
+                val uniqueNewItems = newItems.filter { it.id !in existingIds && it.actualMediaUrl !in existingUrls }
+
                 val updatedRaw = if (isRefresh) {
                     newItems
                 } else {
-                    val existingIds = stateNow.rawItems.map { it.id }.toSet()
-                    stateNow.rawItems + newItems.filter { it.id !in existingIds }
+                    stateNow.rawItems + uniqueNewItems
                 }
-                val filtered = applyClientFilters(updatedRaw, stateNow.filterState)
+
+                val filteredNew = applyClientFilters(if (isRefresh) updatedRaw else uniqueNewItems, stateNow.filterState)
+                
+                val updatedMediaItems = if (isRefresh) {
+                    if (stateNow.filterState.sort == SortOption.RANDOM) filteredNew.shuffled() else filteredNew
+                } else {
+                    val newBatch = if (stateNow.filterState.sort == SortOption.RANDOM) filteredNew.shuffled() else filteredNew
+                    stateNow.mediaItems + newBatch
+                }
+
                 val reachedEnd = !isRefresh && newItems.isEmpty()
 
                 stateFlow.value = stateFlow.value.copy(
                     rawItems = updatedRaw,
-                    mediaItems = filtered,
+                    mediaItems = updatedMediaItems,
                     currentPage = pageToFetch + 1,
                     hasReachedEnd = reachedEnd,
                     isLoading = false,
@@ -794,7 +812,7 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
                     result
                 }
             }
-            SortOption.RANDOM -> result.shuffled()
+            SortOption.RANDOM -> result
         }
     }
 }

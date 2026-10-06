@@ -137,6 +137,7 @@ fun MediaBrowserScreen(
     val homeState by viewModel.homeState.collectAsStateWithLifecycle()
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
     val theme by viewModel.theme.collectAsStateWithLifecycle()
+    val colorPalette by viewModel.colorPalette.collectAsStateWithLifecycle()
     val blurNsfw by viewModel.blurNsfw.collectAsStateWithLifecycle()
     val thumbnailQuality by viewModel.thumbnailQuality.collectAsStateWithLifecycle()
     val loopVideo by viewModel.loopVideoPlayback.collectAsStateWithLifecycle()
@@ -274,6 +275,8 @@ fun MediaBrowserScreen(
                         sources = sources,
                         theme = theme,
                         onThemeChange = { viewModel.setTheme(it) },
+                        colorPalette = colorPalette,
+                        onColorPaletteChange = { viewModel.setColorPalette(it) },
                         blurNsfw = blurNsfw,
                         onBlurNsfwChange = { viewModel.setBlurNsfw(it) },
                         thumbnailQuality = thumbnailQuality,
