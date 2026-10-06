@@ -24,6 +24,7 @@ import com.example.model.ThumbnailQuality
 import com.example.util.ArtfluxNetwork
 import com.example.util.QueryBuilder
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -313,73 +314,130 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         activeJob?.cancel()
 
         val newJob = viewModelScope.launch {
-            val stateNow = stateFlow.value
-            val pageToFetch = if (isRefresh) 1 else stateNow.currentPage
-            val effectiveQuery = QueryBuilder.buildEffectiveQuery(
-                userQuery = stateNow.searchQuery,
-                source = stateNow.activeSource,
-                mediaType = stateNow.filterState.mediaType,
-                rating = stateNow.filterState.rating
-            )
-            val result = apiClient.fetchMedia(stateNow.activeSource, effectiveQuery, pageToFetch)
+            var consecutiveDuplicateAttempts = 0
+            val maxDuplicateAttempts = 3
+            var pageToFetch = if (isRefresh) 1 else stateFlow.value.currentPage
+            var success = false
 
-            result.onSuccess { newItems ->
-                val existingIds = stateNow.rawItems.map { it.id }.toSet()
-                val existingUrls = stateNow.rawItems.map { it.actualMediaUrl }.toSet()
-                val uniqueNewItems = newItems.filter { it.id !in existingIds && it.actualMediaUrl !in existingUrls }
-
-                val updatedRaw = if (isRefresh) {
-                    newItems
-                } else {
-                    stateNow.rawItems + uniqueNewItems
-                }
-
-                val filteredNew = applyClientFilters(if (isRefresh) updatedRaw else uniqueNewItems, stateNow.filterState)
-                
-                val updatedMediaItems = if (isRefresh) {
-                    if (stateNow.filterState.sort == SortOption.RANDOM) filteredNew.shuffled() else filteredNew
-                } else {
-                    val newBatch = if (stateNow.filterState.sort == SortOption.RANDOM) filteredNew.shuffled() else filteredNew
-                    stateNow.mediaItems + newBatch
-                }
-
-                val reachedEnd = !isRefresh && newItems.isEmpty()
-
-                stateFlow.value = stateFlow.value.copy(
-                    rawItems = updatedRaw,
-                    mediaItems = updatedMediaItems,
-                    currentPage = pageToFetch + 1,
-                    hasReachedEnd = reachedEnd,
-                    isLoading = false,
-                    isLoadingMore = false,
-                    isRefreshing = false,
-                    errorMessage = null
+            while (isActive && !success && consecutiveDuplicateAttempts < maxDuplicateAttempts) {
+                val stateNow = stateFlow.value
+                val effectiveQuery = QueryBuilder.buildEffectiveQuery(
+                    userQuery = stateNow.searchQuery,
+                    source = stateNow.activeSource,
+                    mediaType = stateNow.filterState.mediaType,
+                    rating = stateNow.filterState.rating
                 )
-                if (isHome) syncLegacyHomeState()
 
-                // Client-side fallback pagination
-                val targetType = stateNow.filterState.mediaType
-                if (targetType != MediaType.ALL && newItems.isNotEmpty() && stateFlow.value.currentPage <= 4) {
-                    val hasMatch = stateFlow.value.mediaItems.any { it.mediaType == targetType }
-                    if (!hasMatch && !stateFlow.value.hasReachedEnd) {
-                        loadFeedData(isHome, isRefresh = false)
-                    }
-                }
-            }.onFailure { error ->
-                stateFlow.value = stateFlow.value.copy(
-                    isLoading = false,
-                    isLoadingMore = false,
-                    isRefreshing = false,
-                    errorMessage = if (isRefresh) (error.message ?: "Failed to connect to source.") else null
-                )
-                if (!isRefresh) {
-                    _snackbarMessage.value = if (isHome) {
-                        "Could not load more items: ${error.message}"
+                val result = apiClient.fetchMedia(stateNow.activeSource, effectiveQuery, pageToFetch)
+
+                if (!isActive) return@launch
+
+                result.onSuccess { newItems ->
+                    if (!isActive) return@launch
+
+                    if (isRefresh) {
+                        val filteredNew = applyClientFilters(newItems, stateNow.filterState)
+                        val updatedMediaItems = if (stateNow.filterState.sort == SortOption.RANDOM) {
+                            filteredNew.shuffled()
+                        } else {
+                            filteredNew
+                        }
+                        val reachedEnd = newItems.isEmpty()
+
+                        stateFlow.value = stateFlow.value.copy(
+                            rawItems = newItems,
+                            mediaItems = updatedMediaItems,
+                            currentPage = 2,
+                            hasReachedEnd = reachedEnd,
+                            isLoading = false,
+                            isLoadingMore = false,
+                            isRefreshing = false,
+                            errorMessage = null
+                        )
+                        if (isHome) syncLegacyHomeState()
+                        success = true
                     } else {
-                        "Could not load more search items: ${error.message}"
+                        // Load More
+                        if (newItems.isEmpty()) {
+                            stateFlow.value = stateFlow.value.copy(
+                                hasReachedEnd = true,
+                                isLoadingMore = false,
+                                isLoading = false,
+                                isRefreshing = false
+                            )
+                            if (isHome) syncLegacyHomeState()
+                            success = true
+                        } else {
+                            val existingIds = stateNow.rawItems.map { it.id }.toSet()
+                            val existingUrls = stateNow.rawItems.map { it.actualMediaUrl }.toSet()
+                            val uniqueNewItems = newItems.filter { it.id !in existingIds && it.actualMediaUrl !in existingUrls }
+
+                            if (uniqueNewItems.isEmpty()) {
+                                consecutiveDuplicateAttempts++
+                                pageToFetch++
+                                if (consecutiveDuplicateAttempts >= maxDuplicateAttempts) {
+                                    stateFlow.value = stateFlow.value.copy(
+                                        hasReachedEnd = true,
+                                        isLoadingMore = false,
+                                        isLoading = false,
+                                        isRefreshing = false
+                                    )
+                                    if (isHome) syncLegacyHomeState()
+                                    success = true
+                                }
+                            } else {
+                                val updatedRaw = stateNow.rawItems + uniqueNewItems
+                                val filteredNew = applyClientFilters(uniqueNewItems, stateNow.filterState)
+                                val newBatch = if (stateNow.filterState.sort == SortOption.RANDOM) {
+                                    filteredNew.shuffled()
+                                } else {
+                                    filteredNew
+                                }
+                                val updatedMediaItems = stateNow.mediaItems + newBatch
+
+                                stateFlow.value = stateFlow.value.copy(
+                                    rawItems = updatedRaw,
+                                    mediaItems = updatedMediaItems,
+                                    currentPage = pageToFetch + 1,
+                                    hasReachedEnd = false,
+                                    isLoadingMore = false,
+                                    isLoading = false,
+                                    isRefreshing = false,
+                                    errorMessage = null
+                                )
+                                if (isHome) syncLegacyHomeState()
+                                success = true
+                            }
+                        }
                     }
+
+                    if (success && !isRefresh) {
+                        val targetType = stateNow.filterState.mediaType
+                        if (targetType != MediaType.ALL && newItems.isNotEmpty() && stateFlow.value.currentPage <= 4) {
+                            val hasMatch = stateFlow.value.mediaItems.any { it.mediaType == targetType }
+                            if (!hasMatch && !stateFlow.value.hasReachedEnd) {
+                                loadFeedData(isHome, isRefresh = false)
+                            }
+                        }
+                    }
+                }.onFailure { error ->
+                    if (!isActive) return@launch
+                    stateFlow.value = stateFlow.value.copy(
+                        isLoading = false,
+                        isLoadingMore = false,
+                        isRefreshing = false,
+                        errorMessage = if (isRefresh) (error.message ?: "Failed to connect to source.") else null
+                    )
+                    if (!isRefresh) {
+                        _snackbarMessage.value = if (isHome) {
+                            "Could not load more items: ${error.message}"
+                        } else {
+                            "Could not load more search items: ${error.message}"
+                        }
+                    }
+                    if (isHome) syncLegacyHomeState()
+                    success = true
                 }
-                if (isHome) syncLegacyHomeState()
             }
         }
 

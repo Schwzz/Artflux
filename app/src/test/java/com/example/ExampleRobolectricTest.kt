@@ -2189,5 +2189,35 @@ class ExampleRobolectricTest {
     reloadedRepo.setColorPalette(com.example.model.ColorPalette.CRIMSON_FLUX)
     assertEquals(com.example.model.ColorPalette.CRIMSON_FLUX, reloadedRepo.colorPalette.value)
   }
+
+  @Test
+  fun testDuplicateOnlyPagesPreventionAndRandomStability() {
+    val item1 = MediaItem(id = "1", title = "Item 1", previewUrl = "https://img.com/1.jpg", actualMediaUrl = "https://img.com/1.jpg")
+    val item2 = MediaItem(id = "2", title = "Item 2", previewUrl = "https://img.com/2.jpg", actualMediaUrl = "https://img.com/2.jpg")
+    val item3 = MediaItem(id = "3", title = "Item 3", previewUrl = "https://img.com/3.jpg", actualMediaUrl = "https://img.com/3.jpg")
+
+    val page1 = listOf(item1, item2)
+    val page2DuplicateOnly = listOf(item1, item2) // 0 new items
+    val page3WithNew = listOf(item2, item3) // 1 new item: item3
+
+    val existingIds = page1.map { it.id }.toSet()
+    val existingUrls = page1.map { it.actualMediaUrl }.toSet()
+
+    // Page 2 check
+    val uniquePage2 = page2DuplicateOnly.filter { it.id !in existingIds && it.actualMediaUrl !in existingUrls }
+    assertTrue(uniquePage2.isEmpty()) // Duplicate-only page detected!
+
+    // Page 3 check
+    val uniquePage3 = page3WithNew.filter { it.id !in existingIds && it.actualMediaUrl !in existingUrls }
+    assertEquals(1, uniquePage3.size)
+    assertEquals("3", uniquePage3[0].id)
+
+    // Existing items remain stable
+    val updatedList = page1 + uniquePage3
+    assertEquals(3, updatedList.size)
+    assertEquals("1", updatedList[0].id)
+    assertEquals("2", updatedList[1].id)
+    assertEquals("3", updatedList[2].id)
+  }
 }
 
