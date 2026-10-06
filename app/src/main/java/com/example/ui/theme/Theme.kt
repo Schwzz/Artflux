@@ -12,92 +12,131 @@ import androidx.core.view.WindowCompat
 import com.example.model.AppTheme
 import com.example.model.ColorPalette
 
-private val SolarAmberDarkColorScheme = darkColorScheme(
-    primary = SolarAmberPrimaryDark,
-    onPrimary = SolarAmberOnPrimaryDark,
-    primaryContainer = SolarAmberPrimaryContainerDark,
-    onPrimaryContainer = SolarAmberOnPrimaryContainerDark,
-    secondary = SolarAmberSecondaryDark,
-    onSecondary = SolarAmberOnSecondaryDark,
-    secondaryContainer = SolarAmberSecondaryContainerDark,
-    onSecondaryContainer = SolarAmberOnSecondaryContainerDark,
-    tertiary = SolarAmberTertiaryDark,
-    background = SolarAmberBackgroundDark,
+private val ArcticSignalDarkColorScheme = darkColorScheme(
+    primary = ArcticSignalPrimaryDark,
+    onPrimary = ArcticSignalOnPrimaryDark,
+    primaryContainer = ArcticSignalPrimaryContainerDark,
+    onPrimaryContainer = ArcticSignalOnPrimaryContainerDark,
+    secondary = ArcticSignalSecondaryDark,
+    onSecondary = ArcticSignalOnSecondaryDark,
+    secondaryContainer = ArcticSignalSecondaryContainerDark,
+    onSecondaryContainer = ArcticSignalOnSecondaryContainerDark,
+    tertiary = ArcticSignalTertiaryDark,
+    background = ArcticSignalBackgroundDark,
     onBackground = TextPrimaryDark,
-    surface = SolarAmberSurfaceDark,
+    surface = ArcticSignalSurfaceDark,
     onSurface = TextPrimaryDark,
-    surfaceVariant = SolarAmberSurfaceVariantDark,
+    surfaceVariant = ArcticSignalSurfaceVariantDark,
     onSurfaceVariant = TextSecondaryDark,
-    outline = SolarAmberOutlineDark
+    outline = ArcticSignalOutlineDark
 )
 
-private val SolarAmberLightColorScheme = lightColorScheme(
-    primary = SolarAmberPrimaryLight,
-    onPrimary = SolarAmberOnPrimaryLight,
-    primaryContainer = SolarAmberPrimaryContainerLight,
-    onPrimaryContainer = SolarAmberOnPrimaryContainerLight,
-    secondary = SolarAmberSecondaryLight,
-    onSecondary = SolarAmberOnSecondaryLight,
-    secondaryContainer = SolarAmberSecondaryContainerLight,
-    onSecondaryContainer = SolarAmberOnSecondaryContainerLight,
-    tertiary = SolarAmberTertiaryLight,
-    background = SolarAmberBackgroundLight,
+private val ArcticSignalLightColorScheme = lightColorScheme(
+    primary = ArcticSignalPrimaryLight,
+    onPrimary = ArcticSignalOnPrimaryLight,
+    primaryContainer = ArcticSignalPrimaryContainerLight,
+    onPrimaryContainer = ArcticSignalOnPrimaryContainerLight,
+    secondary = ArcticSignalSecondaryLight,
+    onSecondary = ArcticSignalOnSecondaryLight,
+    secondaryContainer = ArcticSignalSecondaryContainerLight,
+    onSecondaryContainer = ArcticSignalOnSecondaryContainerLight,
+    tertiary = ArcticSignalTertiaryLight,
+    background = ArcticSignalBackgroundLight,
     onBackground = TextPrimaryLight,
-    surface = SolarAmberSurfaceLight,
+    surface = ArcticSignalSurfaceLight,
     onSurface = TextPrimaryLight,
-    surfaceVariant = SolarAmberSurfaceVariantLight,
+    surfaceVariant = ArcticSignalSurfaceVariantLight,
     onSurfaceVariant = TextSecondaryLight,
-    outline = SolarAmberOutlineLight
+    outline = ArcticSignalOutlineLight
 )
 
-private val AuroraEmeraldDarkColorScheme = darkColorScheme(
-    primary = AuroraEmeraldPrimaryDark,
-    onPrimary = AuroraEmeraldOnPrimaryDark,
-    primaryContainer = AuroraEmeraldPrimaryContainerDark,
-    onPrimaryContainer = AuroraEmeraldOnPrimaryContainerDark,
-    secondary = AuroraEmeraldSecondaryDark,
-    onSecondary = AuroraEmeraldOnSecondaryDark,
-    secondaryContainer = AuroraEmeraldSecondaryContainerDark,
-    onSecondaryContainer = AuroraEmeraldOnSecondaryContainerDark,
-    tertiary = AuroraEmeraldTertiaryDark,
-    background = AuroraEmeraldBackgroundDark,
+private val EmeraldNoirDarkColorScheme = darkColorScheme(
+    primary = EmeraldNoirPrimaryDark,
+    onPrimary = EmeraldNoirOnPrimaryDark,
+    primaryContainer = EmeraldNoirPrimaryContainerDark,
+    onPrimaryContainer = EmeraldNoirOnPrimaryContainerDark,
+    secondary = EmeraldNoirSecondaryDark,
+    onSecondary = EmeraldNoirOnSecondaryDark,
+    secondaryContainer = EmeraldNoirSecondaryContainerDark,
+    onSecondaryContainer = EmeraldNoirOnSecondaryContainerDark,
+    tertiary = EmeraldNoirTertiaryDark,
+    background = EmeraldNoirBackgroundDark,
     onBackground = TextPrimaryDark,
-    surface = AuroraEmeraldSurfaceDark,
+    surface = EmeraldNoirSurfaceDark,
     onSurface = TextPrimaryDark,
-    surfaceVariant = AuroraEmeraldSurfaceVariantDark,
+    surfaceVariant = EmeraldNoirSurfaceVariantDark,
     onSurfaceVariant = TextSecondaryDark,
-    outline = AuroraEmeraldOutlineDark
+    outline = EmeraldNoirOutlineDark
 )
 
-private val AuroraEmeraldLightColorScheme = lightColorScheme(
-    primary = AuroraEmeraldPrimaryLight,
-    onPrimary = AuroraEmeraldOnPrimaryLight,
-    primaryContainer = AuroraEmeraldPrimaryContainerLight,
-    onPrimaryContainer = AuroraEmeraldOnPrimaryContainerLight,
-    secondary = AuroraEmeraldSecondaryLight,
-    onSecondary = AuroraEmeraldOnSecondaryLight,
-    secondaryContainer = AuroraEmeraldSecondaryContainerLight,
-    onSecondaryContainer = AuroraEmeraldOnSecondaryContainerLight,
-    tertiary = AuroraEmeraldTertiaryLight,
-    background = AuroraEmeraldBackgroundLight,
+private val EmeraldNoirLightColorScheme = lightColorScheme(
+    primary = EmeraldNoirPrimaryLight,
+    onPrimary = EmeraldNoirOnPrimaryLight,
+    primaryContainer = EmeraldNoirPrimaryContainerLight,
+    onPrimaryContainer = EmeraldNoirOnPrimaryContainerLight,
+    secondary = EmeraldNoirSecondaryLight,
+    onSecondary = EmeraldNoirOnSecondaryLight,
+    secondaryContainer = EmeraldNoirSecondaryContainerLight,
+    onSecondaryContainer = EmeraldNoirOnSecondaryContainerLight,
+    tertiary = EmeraldNoirTertiaryLight,
+    background = EmeraldNoirBackgroundLight,
     onBackground = TextPrimaryLight,
-    surface = AuroraEmeraldSurfaceLight,
+    surface = EmeraldNoirSurfaceLight,
     onSurface = TextPrimaryLight,
-    surfaceVariant = AuroraEmeraldSurfaceVariantLight,
+    surfaceVariant = EmeraldNoirSurfaceVariantLight,
     onSurfaceVariant = TextSecondaryLight,
-    outline = AuroraEmeraldOutlineLight
+    outline = EmeraldNoirOutlineLight
+)
+
+private val CrimsonFluxDarkColorScheme = darkColorScheme(
+    primary = CrimsonFluxPrimaryDark,
+    onPrimary = CrimsonFluxOnPrimaryDark,
+    primaryContainer = CrimsonFluxPrimaryContainerDark,
+    onPrimaryContainer = CrimsonFluxOnPrimaryContainerDark,
+    secondary = CrimsonFluxSecondaryDark,
+    onSecondary = CrimsonFluxOnSecondaryDark,
+    secondaryContainer = CrimsonFluxSecondaryContainerDark,
+    onSecondaryContainer = CrimsonFluxOnSecondaryContainerDark,
+    tertiary = CrimsonFluxTertiaryDark,
+    background = CrimsonFluxBackgroundDark,
+    onBackground = TextPrimaryDark,
+    surface = CrimsonFluxSurfaceDark,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = CrimsonFluxSurfaceVariantDark,
+    onSurfaceVariant = TextSecondaryDark,
+    outline = CrimsonFluxOutlineDark
+)
+
+private val CrimsonFluxLightColorScheme = lightColorScheme(
+    primary = CrimsonFluxPrimaryLight,
+    onPrimary = CrimsonFluxOnPrimaryLight,
+    primaryContainer = CrimsonFluxPrimaryContainerLight,
+    onPrimaryContainer = CrimsonFluxOnPrimaryContainerLight,
+    secondary = CrimsonFluxSecondaryLight,
+    onSecondary = CrimsonFluxOnSecondaryLight,
+    secondaryContainer = CrimsonFluxSecondaryContainerLight,
+    onSecondaryContainer = CrimsonFluxOnSecondaryContainerLight,
+    tertiary = CrimsonFluxTertiaryLight,
+    background = CrimsonFluxBackgroundLight,
+    onBackground = TextPrimaryLight,
+    surface = CrimsonFluxSurfaceLight,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = CrimsonFluxSurfaceVariantLight,
+    onSurfaceVariant = TextSecondaryLight,
+    outline = CrimsonFluxOutlineLight
 )
 
 @Composable
 fun MediaBrowserTheme(
     theme: AppTheme = AppTheme.DARK,
-    colorPalette: ColorPalette = ColorPalette.SOLAR_AMBER,
+    colorPalette: ColorPalette = ColorPalette.ARCTIC_SIGNAL,
     content: @Composable () -> Unit
 ) {
     val isLight = theme == AppTheme.LIGHT
     val colorScheme: ColorScheme = when (colorPalette) {
-        ColorPalette.SOLAR_AMBER -> if (isLight) SolarAmberLightColorScheme else SolarAmberDarkColorScheme
-        ColorPalette.AURORA_EMERALD -> if (isLight) AuroraEmeraldLightColorScheme else AuroraEmeraldDarkColorScheme
+        ColorPalette.ARCTIC_SIGNAL -> if (isLight) ArcticSignalLightColorScheme else ArcticSignalDarkColorScheme
+        ColorPalette.EMERALD_NOIR -> if (isLight) EmeraldNoirLightColorScheme else EmeraldNoirDarkColorScheme
+        ColorPalette.CRIMSON_FLUX -> if (isLight) CrimsonFluxLightColorScheme else CrimsonFluxDarkColorScheme
     }
 
     val view = LocalView.current

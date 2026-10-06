@@ -67,11 +67,12 @@ enum class AppTheme(val label: String) {
 }
 
 enum class ColorPalette(val label: String, val subtitle: String) {
-    SOLAR_AMBER("Solar Amber", "Warm golden amber & sunset coral"),
-    AURORA_EMERALD("Aurora Emerald", "Luminous emerald & arctic mint");
+    ARCTIC_SIGNAL("Arctic Signal", "Electric Cyan, Violet & Coral"),
+    EMERALD_NOIR("Emerald Noir", "Emerald, Sapphire & Gold"),
+    CRIMSON_FLUX("Crimson Flux", "Crimson, Electric Blue & Amber");
 
     companion object {
-        val DEFAULT = SOLAR_AMBER
+        val DEFAULT = ARCTIC_SIGNAL
     }
 }
 

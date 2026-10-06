@@ -2088,22 +2088,21 @@ class ExampleRobolectricTest {
   @Test
   fun testWaifuImSourceConfigurationAndParsing() {
     val waifuSource = MediaSourceConfig.BUILT_IN_WAIFU_IM
-    assertEquals("https://api.waifu.im/search", waifuSource.apiUrl)
-    assertEquals("included_tags", waifuSource.searchParam)
-    assertEquals("images", waifuSource.itemsPath)
+    assertEquals("https://api.waifu.im/images", waifuSource.apiUrl)
+    assertEquals("IncludedTags", waifuSource.searchParam)
+    assertEquals("items", waifuSource.itemsPath)
     assertTrue(waifuSource.isBuiltIn)
 
     val jsonPayload = """
       {
-        "images": [
+        "items": [
           {
-            "image_id": 9991,
+            "id": 9991,
             "signature": "waifu_sig_123",
             "url": "https://cdn.waifu.im/9991.jpg",
-            "preview_url": "https://cdn.waifu.im/preview_9991.jpg",
-            "is_nsfw": false,
+            "isNsfw": false,
             "extension": ".jpg",
-            "artist": { "name": "TestArtist" }
+            "artists": [ { "name": "TestArtist" } ]
           }
         ]
       }
@@ -2116,7 +2115,7 @@ class ExampleRobolectricTest {
     assertEquals("9991", item.id)
     assertEquals("waifu_sig_123", item.title)
     assertEquals("https://cdn.waifu.im/9991.jpg", item.actualMediaUrl)
-    assertEquals("https://cdn.waifu.im/preview_9991.jpg", item.previewUrl)
+    assertEquals("https://cdn.waifu.im/9991.jpg", item.previewUrl)
     assertEquals(MediaRating.SAFE, item.rating)
     assertEquals("TestArtist", item.author)
   }
@@ -2175,20 +2174,20 @@ class ExampleRobolectricTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val prefsRepo = com.example.data.PreferencesRepository(context)
 
-    // Default color palette should be SOLAR_AMBER
-    assertEquals(com.example.model.ColorPalette.SOLAR_AMBER, prefsRepo.colorPalette.value)
+    // Default color palette should be ARCTIC_SIGNAL
+    assertEquals(com.example.model.ColorPalette.ARCTIC_SIGNAL, prefsRepo.colorPalette.value)
 
-    // Set and persist AURORA_EMERALD
-    prefsRepo.setColorPalette(com.example.model.ColorPalette.AURORA_EMERALD)
-    assertEquals(com.example.model.ColorPalette.AURORA_EMERALD, prefsRepo.colorPalette.value)
+    // Set and persist EMERALD_NOIR
+    prefsRepo.setColorPalette(com.example.model.ColorPalette.EMERALD_NOIR)
+    assertEquals(com.example.model.ColorPalette.EMERALD_NOIR, prefsRepo.colorPalette.value)
 
     // Simulate restart / reload
     val reloadedRepo = com.example.data.PreferencesRepository(context)
-    assertEquals(com.example.model.ColorPalette.AURORA_EMERALD, reloadedRepo.colorPalette.value)
+    assertEquals(com.example.model.ColorPalette.EMERALD_NOIR, reloadedRepo.colorPalette.value)
 
-    // Reset back to SOLAR_AMBER
-    reloadedRepo.setColorPalette(com.example.model.ColorPalette.SOLAR_AMBER)
-    assertEquals(com.example.model.ColorPalette.SOLAR_AMBER, reloadedRepo.colorPalette.value)
+    // Reset to CRIMSON_FLUX
+    reloadedRepo.setColorPalette(com.example.model.ColorPalette.CRIMSON_FLUX)
+    assertEquals(com.example.model.ColorPalette.CRIMSON_FLUX, reloadedRepo.colorPalette.value)
   }
 }
 

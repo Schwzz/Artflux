@@ -31,20 +31,45 @@ class MediaApiClient {
             val urlBuilder = source.apiUrl.toHttpUrlOrNull()?.newBuilder()
                 ?: return@withContext Result.failure(IllegalArgumentException("Invalid API URL: ${source.apiUrl}"))
 
-            // Query parameter
-            if (query.isNotBlank() && source.searchParam.isNotBlank()) {
-                urlBuilder.addQueryParameter(source.searchParam, query.trim())
-            }
+            val isWaifu = source.apiUrl.contains("waifu.im") || source.id.contains("waifu")
 
-            // Pagination parameter
-            if (source.pageParam.isNotBlank()) {
+            if (isWaifu) {
+                // Waifu.im API v7
                 val actualPage = (page - 1) + source.pageStartsAt
-                urlBuilder.addQueryParameter(source.pageParam, actualPage.toString())
-            }
+                urlBuilder.addQueryParameter("page", actualPage.toString())
+                urlBuilder.addQueryParameter("pageSize", source.defaultPageSize.toString())
 
-            // Page size parameter
-            if (source.pageSizeParam.isNotBlank()) {
-                urlBuilder.addQueryParameter(source.pageSizeParam, source.defaultPageSize.toString())
+                var cleanQuery = query.trim()
+                if (cleanQuery.contains("is_nsfw:false", ignoreCase = true)) {
+                    cleanQuery = cleanQuery.replace("is_nsfw:false", "", ignoreCase = true).trim()
+                    urlBuilder.addQueryParameter("is_nsfw", "false")
+                } else if (cleanQuery.contains("is_nsfw:true", ignoreCase = true)) {
+                    cleanQuery = cleanQuery.replace("is_nsfw:true", "", ignoreCase = true).trim()
+                    urlBuilder.addQueryParameter("is_nsfw", "true")
+                }
+
+                if (cleanQuery.isNotBlank()) {
+                    val tagTokens = cleanQuery.split("[\\s,]+".toRegex()).filter { it.isNotBlank() }
+                    for (tag in tagTokens) {
+                        urlBuilder.addQueryParameter("IncludedTags", tag)
+                    }
+                }
+            } else {
+                // Query parameter
+                if (query.isNotBlank() && source.searchParam.isNotBlank()) {
+                    urlBuilder.addQueryParameter(source.searchParam, query.trim())
+                }
+
+                // Pagination parameter
+                if (source.pageParam.isNotBlank()) {
+                    val actualPage = (page - 1) + source.pageStartsAt
+                    urlBuilder.addQueryParameter(source.pageParam, actualPage.toString())
+                }
+
+                // Page size parameter
+                if (source.pageSizeParam.isNotBlank()) {
+                    urlBuilder.addQueryParameter(source.pageSizeParam, source.defaultPageSize.toString())
+                }
             }
 
             // Effective Authentication Query Parameters (multi-parameter support including api_key, user_id, etc.)
@@ -59,6 +84,10 @@ class MediaApiClient {
                 .url(urlBuilder.build())
                 .addHeader("User-Agent", "ArtfluxApp/2.0 (Android; MediaBrowser)")
                 .addHeader("Accept", "application/json")
+
+            if (isWaifu) {
+                requestBuilder.addHeader("Accept-Version", "v7")
+            }
 
             // Effective Authentication Headers (Bearer token, custom headers, etc.)
             val headers = source.getEffectiveHeaders()
@@ -429,10 +458,20 @@ class MediaApiClient {
 
         // Rating parsing
         val isDanbooruSource = source.apiUrl.contains("danbooru") || source.id.contains("danbooru")
-        val rating = parseRating(
-            ratingStr = extractValue(obj, source.ratingField),
-            isDanbooru = isDanbooruSource
-        )
+        val isWaifuSource = source.apiUrl.contains("waifu.im") || source.id.contains("waifu")
+
+        val rating = if (isWaifuSource) {
+            when {
+                obj.has("isNsfw") -> if (obj.optBoolean("isNsfw")) MediaRating.ADULT else MediaRating.SAFE
+                obj.has("is_nsfw") -> if (obj.optBoolean("is_nsfw")) MediaRating.ADULT else MediaRating.SAFE
+                else -> parseRating(extractValue(obj, source.ratingField), isDanbooru = false)
+            }
+        } else {
+            parseRating(
+                ratingStr = extractValue(obj, source.ratingField),
+                isDanbooru = isDanbooruSource
+            )
+        }
 
         // Media type detection (GIF, VIDEO, IMAGE) using strong evidence hierarchy
         val explicitTypeField = extractValue(obj, source.mediaTypeField).ifBlank {
@@ -456,7 +495,16 @@ class MediaApiClient {
             finalImage.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it.isNotBlank() }
         }
 
-        val author = extractValue(obj, source.authorField).ifBlank { null }
+        val rawAuthor = extractValue(obj, source.authorField)
+        val author = if (rawAuthor.isNotBlank() && !rawAuthor.startsWith("[")) rawAuthor else {
+            val artistsArr = obj.optJSONArray("artists") ?: obj.optJSONArray(source.authorField)
+            if (artistsArr != null && artistsArr.length() > 0) {
+                (0 until artistsArr.length()).mapNotNull { idx ->
+                    val aObj = artistsArr.optJSONObject(idx)
+                    aObj?.optString("name") ?: aObj?.optString("artist")
+                }.filter { it.isNotBlank() }.joinToString(", ")
+            } else if (rawAuthor.isNotBlank()) rawAuthor else null
+        }
         val width = obj.optInt("width", 0).takeIf { it > 0 } ?: obj.optInt("image_width", 0).takeIf { it > 0 }
         val height = obj.optInt("height", 0).takeIf { it > 0 } ?: obj.optInt("image_height", 0).takeIf { it > 0 }
         val fileSize = obj.optLong("file_size", 0L).takeIf { it > 0 }

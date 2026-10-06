@@ -90,6 +90,9 @@ data class MediaSourceConfig(
      * All sources support IMAGE, GIF, and VIDEO in Artflux.
      */
     fun getSupportedMediaTypes(): List<MediaType> {
+        if (apiUrl.contains("waifu.im") || id.contains("waifu")) {
+            return listOf(MediaType.ALL)
+        }
         return listOf(MediaType.ALL, MediaType.IMAGE, MediaType.GIF, MediaType.VIDEO)
     }
 
@@ -589,29 +592,29 @@ RULES:
         val BUILT_IN_WAIFU_IM = MediaSourceConfig(
             id = "builtin_waifu_im",
             name = "Waifu.im",
-            apiUrl = "https://api.waifu.im/search",
-            searchParam = "included_tags",
+            apiUrl = "https://api.waifu.im/images",
+            searchParam = "IncludedTags",
             pageParam = "page",
             pageStartsAt = 1,
-            pageSizeParam = "limit",
+            pageSizeParam = "pageSize",
             defaultPageSize = 25,
-            itemsPath = "images",
+            itemsPath = "items",
             imageUrlField = "url",
-            thumbUrlField = "preview_url",
+            thumbUrlField = "url",
             sampleUrlField = "url",
             postUrlField = "source",
             tagsField = "tags",
-            ratingField = "is_nsfw",
+            ratingField = "isNsfw",
             mediaTypeField = "extension",
             titleField = "signature",
-            authorField = "artist.name",
+            authorField = "artists",
             isBuiltIn = true,
-            description = "Curated anime illustration archive with tags and high-resolution artwork",
-            gifQueryTag = "gif",
+            description = "Anime illustration archive with v7 API tag searching and SFW/NSFW filtering",
+            gifQueryTag = "",
             videoQueryTag = "",
-            safeRatingTag = "",
+            safeRatingTag = "is_nsfw:false",
             suggestiveRatingTag = "",
-            adultRatingTag = ""
+            adultRatingTag = "is_nsfw:true"
         )
 
         val DEFAULT_SOURCES = listOf(
@@ -625,26 +628,26 @@ RULES:
 
         val TEMPLATE_WAIFU_IM = MediaSourceConfig(
             name = "Waifu.im API",
-            apiUrl = "https://api.waifu.im/search",
-            searchParam = "included_tags",
+            apiUrl = "https://api.waifu.im/images",
+            searchParam = "IncludedTags",
             pageParam = "page",
             pageStartsAt = 1,
-            pageSizeParam = "limit",
+            pageSizeParam = "pageSize",
             defaultPageSize = 25,
-            itemsPath = "images",
+            itemsPath = "items",
             imageUrlField = "url",
-            thumbUrlField = "preview_url",
+            thumbUrlField = "url",
             sampleUrlField = "url",
             postUrlField = "source",
             tagsField = "tags",
-            ratingField = "is_nsfw",
+            ratingField = "isNsfw",
             mediaTypeField = "extension",
-            gifQueryTag = "gif",
+            gifQueryTag = "",
             videoQueryTag = "",
-            safeRatingTag = "",
+            safeRatingTag = "is_nsfw:false",
             suggestiveRatingTag = "",
-            adultRatingTag = "",
-            description = "Curated anime illustration API supporting tag search and high-resolution images."
+            adultRatingTag = "is_nsfw:true",
+            description = "Curated anime illustration API with v7 endpoint supporting SFW/NSFW filtering and tag search."
         )
 
         val TEMPLATE_SAFEBOORU = MediaSourceConfig(

@@ -89,7 +89,7 @@ fun SettingsScreen(
     sources: List<MediaSourceConfig>,
     theme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
-    colorPalette: ColorPalette = ColorPalette.SOLAR_AMBER,
+    colorPalette: ColorPalette = ColorPalette.ARCTIC_SIGNAL,
     onColorPaletteChange: (ColorPalette) -> Unit = {},
     blurNsfw: Boolean,
     onBlurNsfwChange: (Boolean) -> Unit,
@@ -150,42 +150,42 @@ fun SettingsScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Solar Amber Option
-                        val isAmber = colorPalette == ColorPalette.SOLAR_AMBER
+                        // Arctic Signal Option
+                        val isArctic = colorPalette == ColorPalette.ARCTIC_SIGNAL
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isAmber) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .background(if (isArctic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                 .border(
                                     width = 1.dp,
-                                    color = if (isAmber) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    color = if (isArctic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     shape = RoundedCornerShape(10.dp)
                                 )
-                                .clickable { onColorPaletteChange(ColorPalette.SOLAR_AMBER) }
-                                .padding(vertical = 12.dp, horizontal = 8.dp)
-                                .testTag("theme_palette_amber"),
+                                .clickable { onColorPaletteChange(ColorPalette.ARCTIC_SIGNAL) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp)
+                                .testTag("theme_palette_arctic"),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "Solar Amber",
-                                    color = if (isAmber) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = if (isAmber) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
+                                    text = "Arctic Signal",
+                                    color = if (isArctic) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isArctic) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp
                                 )
                                 Text(
-                                    text = "Warm Amber",
-                                    color = if (isAmber) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 10.sp
+                                    text = "Cyan/Violet",
+                                    color = if (isArctic) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 9.sp
                                 )
                             }
                         }
 
-                        // Aurora Emerald Option
-                        val isEmerald = colorPalette == ColorPalette.AURORA_EMERALD
+                        // Emerald Noir Option
+                        val isEmerald = colorPalette == ColorPalette.EMERALD_NOIR
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -196,22 +196,54 @@ fun SettingsScreen(
                                     color = if (isEmerald) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     shape = RoundedCornerShape(10.dp)
                                 )
-                                .clickable { onColorPaletteChange(ColorPalette.AURORA_EMERALD) }
-                                .padding(vertical = 12.dp, horizontal = 8.dp)
+                                .clickable { onColorPaletteChange(ColorPalette.EMERALD_NOIR) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp)
                                 .testTag("theme_palette_emerald"),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "Aurora Emerald",
+                                    text = "Emerald Noir",
                                     color = if (isEmerald) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                                     fontWeight = if (isEmerald) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp
+                                    fontSize = 12.sp
                                 )
                                 Text(
-                                    text = "Vibrant Mint",
+                                    text = "Emerald/Sapphire",
                                     color = if (isEmerald) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 10.sp
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
+
+                        // Crimson Flux Option
+                        val isCrimson = colorPalette == ColorPalette.CRIMSON_FLUX
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isCrimson) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isCrimson) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onColorPaletteChange(ColorPalette.CRIMSON_FLUX) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp)
+                                .testTag("theme_palette_crimson"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Crimson Flux",
+                                    color = if (isCrimson) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isCrimson) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "Crimson/Blue",
+                                    color = if (isCrimson) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 9.sp
                                 )
                             }
                         }

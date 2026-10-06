@@ -1044,36 +1044,40 @@ fun SearchFilterSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Media Type Section
-            FilterSectionHeader(title = "Media Type")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                supportedTypes.forEach { type ->
-                    val isSelected = selectedType == type
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                            .clickable { selectedType = type }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                            .testTag("filter_type_${type.name}")
-                    ) {
-                        Text(
-                            text = type.label,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
+            val isWaifu = selectedSource.apiUrl.contains("waifu.im") || selectedSource.id.contains("waifu")
+
+            // Media Type Section (hidden if source supports only ALL media type)
+            if (supportedTypes.size > 1) {
+                FilterSectionHeader(title = "Media Type")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    supportedTypes.forEach { type ->
+                        val isSelected = selectedType == type
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                                .clickable { selectedType = type }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .testTag("filter_type_${type.name}")
+                        ) {
+                            Text(
+                                text = type.label,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // Content Rating Section
             FilterSectionHeader(title = "Content Rating")
@@ -1083,8 +1087,17 @@ fun SearchFilterSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MediaRating.values().filter { it != MediaRating.UNKNOWN }.forEach { rating ->
+                val availableRatings = if (isWaifu) listOf(MediaRating.ALL, MediaRating.SAFE, MediaRating.ADULT) else MediaRating.values().filter { it != MediaRating.UNKNOWN }
+                availableRatings.forEach { rating ->
                     val isSelected = selectedRating == rating
+                    val ratingDisplay = if (isWaifu) {
+                        when (rating) {
+                            MediaRating.SAFE -> "SFW"
+                            MediaRating.ADULT -> "NSFW"
+                            else -> "All"
+                        }
+                    } else rating.label
+
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -1095,7 +1108,7 @@ fun SearchFilterSheet(
                             .testTag("filter_rating_${rating.name}")
                     ) {
                         Text(
-                            text = rating.label,
+                            text = ratingDisplay,
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
@@ -1146,7 +1159,8 @@ fun SearchFilterSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SortOption.values().forEach { sort ->
+                val availableSorts: List<SortOption> = if (isWaifu) listOf(SortOption.LATEST, SortOption.RANDOM) else SortOption.values().toList()
+                availableSorts.forEach { sort ->
                     val isSelected = selectedSort == sort
                     Box(
                         modifier = Modifier
@@ -1346,36 +1360,40 @@ fun HomeFeedSettingsSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            val isHomeWaifu = selectedSource.apiUrl.contains("waifu.im") || selectedSource.id.contains("waifu")
+
             // Media Type Section
-            FilterSectionHeader(title = "Media Type")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                supportedTypes.forEach { type ->
-                    val isSelected = selectedType == type
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
-                            .clickable { selectedType = type }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                            .testTag("home_type_option_${type.name}")
-                    ) {
-                        Text(
-                            text = type.label,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
+            if (supportedTypes.size > 1) {
+                FilterSectionHeader(title = "Media Type")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    supportedTypes.forEach { type ->
+                        val isSelected = selectedType == type
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                                .clickable { selectedType = type }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .testTag("home_type_option_${type.name}")
+                        ) {
+                            Text(
+                                text = type.label,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // Rating Section
             FilterSectionHeader(title = "Content Rating")
@@ -1385,8 +1403,17 @@ fun HomeFeedSettingsSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MediaRating.values().filter { it != MediaRating.UNKNOWN }.forEach { rating ->
+                val availableRatings = if (isHomeWaifu) listOf(MediaRating.ALL, MediaRating.SAFE, MediaRating.ADULT) else MediaRating.values().filter { it != MediaRating.UNKNOWN }
+                availableRatings.forEach { rating ->
                     val isSelected = selectedRating == rating
+                    val ratingDisplay = if (isHomeWaifu) {
+                        when (rating) {
+                            MediaRating.SAFE -> "SFW"
+                            MediaRating.ADULT -> "NSFW"
+                            else -> "All"
+                        }
+                    } else rating.label
+
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -1397,7 +1424,7 @@ fun HomeFeedSettingsSheet(
                             .testTag("home_rating_option_${rating.name}")
                     ) {
                         Text(
-                            text = rating.label,
+                            text = ratingDisplay,
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
@@ -1416,7 +1443,8 @@ fun HomeFeedSettingsSheet(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SortOption.values().forEach { sort ->
+                val availableSorts: List<SortOption> = if (isHomeWaifu) listOf(SortOption.LATEST, SortOption.RANDOM) else SortOption.values().toList()
+                availableSorts.forEach { sort ->
                     val isSelected = selectedSort == sort
                     Box(
                         modifier = Modifier
