@@ -1,5 +1,8 @@
 package com.example.model
 
+import org.json.JSONArray
+import org.json.JSONObject
+
 enum class MediaRating(val label: String) {
     ALL("All Ratings"),
     SAFE("Safe"),
@@ -208,6 +211,73 @@ data class MediaItem(
             DownloadQuality.Q720 -> sampleUrl?.ifBlank { null } ?: actualMediaUrl
             DownloadQuality.Q480 -> previewUrl.ifBlank { sampleUrl ?: actualMediaUrl }
             DownloadQuality.Q360 -> previewUrl.ifBlank { sampleUrl ?: actualMediaUrl }
+        }
+    }
+
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", id)
+        obj.put("title", title)
+        obj.put("actualMediaUrl", actualMediaUrl)
+        obj.put("previewUrl", previewUrl)
+        if (sampleUrl != null) obj.put("sampleUrl", sampleUrl)
+        if (postUrl != null) obj.put("postUrl", postUrl)
+        val tagsArray = JSONArray()
+        for (t in tags) {
+            tagsArray.put(t)
+        }
+        obj.put("tags", tagsArray)
+        obj.put("rating", rating.name)
+        obj.put("mediaType", mediaType.name)
+        if (width != null) obj.put("width", width)
+        if (height != null) obj.put("height", height)
+        if (author != null) obj.put("author", author)
+        obj.put("sourceName", sourceName)
+        if (description != null) obj.put("description", description)
+        if (fileSize != null) obj.put("fileSize", fileSize)
+        if (fileExt != null) obj.put("fileExt", fileExt)
+        if (score != null) obj.put("score", score)
+        if (favorites != null) obj.put("favorites", favorites)
+        if (views != null) obj.put("views", views)
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): MediaItem {
+            val tagsList = mutableListOf<String>()
+            val tagsArray = obj.optJSONArray("tags")
+            if (tagsArray != null) {
+                for (i in 0 until tagsArray.length()) {
+                    tagsList.add(tagsArray.getString(i))
+                }
+            }
+            val ratingStr = obj.optString("rating", MediaRating.SAFE.name)
+            val ratingVal = try { MediaRating.valueOf(ratingStr) } catch (e: Exception) { MediaRating.SAFE }
+
+            val typeStr = obj.optString("mediaType", MediaType.IMAGE.name)
+            val typeVal = try { MediaType.valueOf(typeStr) } catch (e: Exception) { MediaType.IMAGE }
+
+            return MediaItem(
+                id = obj.getString("id"),
+                title = obj.optString("title", "Untitled"),
+                actualMediaUrl = obj.optString("actualMediaUrl", obj.optString("imageUrl", "")),
+                previewUrl = obj.optString("previewUrl", obj.optString("thumbnailUrl", "")),
+                sampleUrl = obj.optString("sampleUrl").ifBlank { null },
+                postUrl = obj.optString("postUrl").ifBlank { null },
+                tags = tagsList,
+                rating = ratingVal,
+                mediaType = typeVal,
+                width = if (obj.has("width")) obj.getInt("width") else null,
+                height = if (obj.has("height")) obj.getInt("height") else null,
+                author = obj.optString("author").ifBlank { null },
+                sourceName = obj.optString("sourceName", ""),
+                description = obj.optString("description").ifBlank { null },
+                fileSize = if (obj.has("fileSize")) obj.getLong("fileSize") else null,
+                fileExt = obj.optString("fileExt").ifBlank { null },
+                score = if (obj.has("score")) obj.getInt("score") else null,
+                favorites = if (obj.has("favorites")) obj.getInt("favorites") else null,
+                views = if (obj.has("views")) obj.getInt("views") else null
+            )
         }
     }
 }

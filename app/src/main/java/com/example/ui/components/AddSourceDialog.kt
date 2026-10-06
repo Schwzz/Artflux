@@ -86,19 +86,8 @@ import com.example.model.AuthType
 import com.example.model.DiagnosticStatus
 import com.example.model.MediaSourceConfig
 import com.example.model.SourceDiagnosticReport
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EmeraldSafe
-import com.example.ui.theme.MagentaAccent
-import com.example.ui.theme.NeonIndigo
-import com.example.ui.theme.NeonIndigoLight
 import com.example.ui.theme.RoseBadge
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 import kotlinx.coroutines.launch
 
 enum class AddSourceStep {
@@ -477,7 +466,7 @@ fun AddSourceDialog(
 
                 // Bottom Action Footer
                 if (currentStep == AddSourceStep.MANUAL_FORM || currentStep == AddSourceStep.REVIEW_AND_TEST) {
-                    HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -500,7 +489,7 @@ fun AddSourceDialog(
                             if (isTestingSource) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = NeonIndigoLight,
+                                    color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -509,11 +498,11 @@ fun AddSourceDialog(
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
                                     contentDescription = null,
-                                    tint = NeonIndigoLight,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Test Diagnostics", color = NeonIndigoLight, fontSize = 12.sp)
+                                Text("Test Diagnostics", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                             }
                         }
 
@@ -525,13 +514,13 @@ fun AddSourceDialog(
                                 }
                             },
                             enabled = sourceName.isNotBlank() && apiUrl.isNotBlank(),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.testTag("save_source_button")
                         ) {
                             Text(
                                 text = if (initialConfig == null) "Save Source" else "Update Source",
-                                color = TextPrimary,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -557,7 +546,7 @@ fun EntryChoiceScreen(
     ) {
         Text(
             text = "How would you like to add it?",
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
             modifier = Modifier.padding(bottom = 4.dp)
         )
@@ -569,7 +558,7 @@ fun EntryChoiceScreen(
             badgeColor = EmeraldSafe,
             description = "Choose from ready-to-use booru & imageboard templates including Safebooru, Danbooru, Yande.re, Gelbooru, and Moebooru.",
             icon = Icons.Default.ViewList,
-            iconTint = NeonIndigoLight,
+            iconTint = MaterialTheme.colorScheme.primary,
             testTag = "choice_templates",
             onClick = onSelectTemplates
         )
@@ -578,10 +567,10 @@ fun EntryChoiceScreen(
         EntryChoiceCard(
             title = "Import Configuration",
             badge = "RECOMMENDED",
-            badgeColor = NeonIndigoLight,
+            badgeColor = MaterialTheme.colorScheme.primary,
             description = "Paste a structured JSON configuration generated with an external AI (ChatGPT, Claude, Gemini) or shared by a friend.",
             icon = Icons.Default.UploadFile,
-            iconTint = CyanAccent,
+            iconTint = MaterialTheme.colorScheme.secondary,
             testTag = "choice_import_json",
             onClick = onSelectImport
         )
@@ -590,10 +579,10 @@ fun EntryChoiceScreen(
         EntryChoiceCard(
             title = "Manual Setup",
             badge = "ADVANCED",
-            badgeColor = MagentaAccent,
+            badgeColor = MaterialTheme.colorScheme.tertiary,
             description = "Directly specify REST API endpoints, query parameters, JSON response mappings, media tags, and multi-key authentication.",
             icon = Icons.Default.Tune,
-            iconTint = MagentaAccent,
+            iconTint = MaterialTheme.colorScheme.tertiary,
             testTag = "choice_manual_setup",
             onClick = onSelectManual
         )
@@ -615,10 +604,10 @@ fun EntryChoiceCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .testTag(testTag),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -651,7 +640,7 @@ fun EntryChoiceCard(
                 ) {
                     Text(
                         text = title,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )
@@ -671,7 +660,7 @@ fun EntryChoiceCard(
                 }
                 Text(
                     text = description,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
                     modifier = Modifier.padding(top = 4.dp)
@@ -693,7 +682,7 @@ fun TemplatesSelectionScreen(
     ) {
         Text(
             text = "Select a source template to prefill parameters. You will be able to review, adjust, and test it before saving:",
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 4.dp)
         )
@@ -703,10 +692,10 @@ fun TemplatesSelectionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                     .clickable { onSelectTemplate(template) }
                     .testTag("template_${template.name.replace(" ", "_")}"),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
@@ -716,26 +705,26 @@ fun TemplatesSelectionScreen(
                     ) {
                         Text(
                             text = template.name,
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
                         Text(
                             text = "USE TEMPLATE",
-                            color = NeonIndigoLight,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
                     }
                     Text(
                         text = template.description,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     Text(
                         text = template.apiUrl,
-                        color = TextTertiary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         fontSize = 10.sp,
                         maxLines = 1,
                         modifier = Modifier.padding(top = 2.dp)
@@ -747,13 +736,13 @@ fun TemplatesSelectionScreen(
                             Icon(
                                 imageVector = Icons.Default.Key,
                                 contentDescription = null,
-                                tint = CyanAccent,
+                                tint = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Requires API Credentials (api_key, user_id)",
-                                color = CyanAccent,
+                                color = MaterialTheme.colorScheme.secondary,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -784,8 +773,8 @@ fun ImportJsonScreen(
         // AI Workflow Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, NeonIndigo.copy(alpha = 0.4f)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -798,13 +787,13 @@ fun ImportJsonScreen(
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = NeonIndigoLight,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "External AI Workflow",
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -813,7 +802,7 @@ fun ImportJsonScreen(
                     Button(
                         onClick = onCopyPrompt,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (promptCopied) EmeraldSafe else NeonIndigo
+                            containerColor = if (promptCopied) EmeraldSafe else MaterialTheme.colorScheme.primary
                         ),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("copy_ai_prompt_button")
@@ -822,12 +811,12 @@ fun ImportJsonScreen(
                             imageVector = if (promptCopied) Icons.Default.Check else Icons.Default.ContentCopy,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
-                            tint = TextPrimary
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (promptCopied) "Copied!" else "Copy AI Prompt",
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -836,7 +825,7 @@ fun ImportJsonScreen(
 
                 Text(
                     text = "Copy our optimized prompt, paste it into ChatGPT, Claude, or Gemini alongside any API documentation, and paste the generated JSON below.",
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
                     modifier = Modifier.padding(top = 6.dp)
@@ -852,7 +841,7 @@ fun ImportJsonScreen(
         ) {
             Text(
                 text = "Configuration JSON",
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp
             )
@@ -866,10 +855,10 @@ fun ImportJsonScreen(
                     imageVector = Icons.Default.ContentPaste,
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
-                    tint = NeonIndigoLight
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Paste from Clipboard", color = NeonIndigoLight, fontSize = 11.sp)
+                Text("Paste from Clipboard", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
             }
         }
 
@@ -880,7 +869,7 @@ fun ImportJsonScreen(
             placeholder = {
                 Text(
                     text = "{\n  \"name\": \"My Booru Source\",\n  \"apiUrl\": \"https://api.example.com/posts\",\n  \"searchParam\": \"tags\",\n  \"imageUrlField\": \"file_url\"\n}",
-                    color = TextTertiary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp
                 )
@@ -892,12 +881,12 @@ fun ImportJsonScreen(
                 .testTag("import_json_input"),
             shape = RoundedCornerShape(10.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = DarkSurface,
-                unfocusedContainerColor = DarkSurface,
-                focusedBorderColor = NeonIndigo,
-                unfocusedBorderColor = CardBorder,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
             textStyle = MaterialTheme.typography.bodySmall.copy(
                 fontFamily = FontFamily.Monospace,
@@ -926,7 +915,7 @@ fun ImportJsonScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = errorMessage,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -938,7 +927,7 @@ fun ImportJsonScreen(
         Button(
             onClick = onValidateAndImport,
             enabled = jsonText.isNotBlank(),
-            colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
@@ -947,7 +936,7 @@ fun ImportJsonScreen(
         ) {
             Text(
                 text = "Parse & Review Configuration",
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
             )
@@ -1033,7 +1022,7 @@ fun ManualSetupForm(
             testTag = "input_api_url"
         )
 
-        HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 2.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 2.dp))
 
         // 2. Request Parameters
         FormSectionTitle("2. Request & Pagination")
@@ -1087,7 +1076,7 @@ fun ManualSetupForm(
             testTag = "input_items_path"
         )
 
-        HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 2.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 2.dp))
 
         // 3. Response Mapping
         FormSectionTitle("3. JSON Field Mappings")
@@ -1154,7 +1143,7 @@ fun ManualSetupForm(
             }
         }
 
-        HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 2.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 2.dp))
 
         // 4. Media Discovery & Ratings
         FormSectionTitle("4. Media Discovery Tags (Optional)")
@@ -1210,13 +1199,13 @@ fun ManualSetupForm(
             }
         }
 
-        HorizontalDivider(color = CardBorder, modifier = Modifier.padding(vertical = 2.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, modifier = Modifier.padding(vertical = 2.dp))
 
         // 6. Authentication Section
         FormSectionTitle("6. Authentication")
         Text(
             text = "Select the authentication method required by this API:",
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp
         )
 
@@ -1259,7 +1248,7 @@ fun ManualSetupForm(
             AuthType.NONE -> {
                 Text(
                     text = "No authentication credentials will be sent with requests.",
-                    color = TextTertiary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp
                 )
             }
@@ -1298,7 +1287,7 @@ fun ManualSetupForm(
                 ) {
                     Text(
                         text = "Query Parameters (e.g. api_key, user_id):",
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
 
@@ -1367,10 +1356,10 @@ fun ManualSetupForm(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
                             modifier = Modifier.size(14.dp),
-                            tint = NeonIndigoLight
+                            tint = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Add Parameter", color = NeonIndigoLight, fontSize = 11.sp)
+                        Text("Add Parameter", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                     }
                 }
             }
@@ -1455,16 +1444,16 @@ fun ReviewAndTestScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (config.supportsGifs) {
-                        BadgePill("GIF", MagentaAccent)
+                        BadgePill("GIF", MaterialTheme.colorScheme.tertiary)
                     }
                     if (config.supportsVideos) {
-                        BadgePill("VIDEO", CyanAccent)
+                        BadgePill("VIDEO", MaterialTheme.colorScheme.secondary)
                     }
                     if (config.hasAuthentication) {
                         BadgePill("AUTH", EmeraldSafe)
                     }
                     if (config.safeRatingTag.isNotBlank() || config.adultRatingTag.isNotBlank()) {
-                        BadgePill("RATINGS", NeonIndigoLight)
+                        BadgePill("RATINGS", MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -1473,7 +1462,7 @@ fun ReviewAndTestScreen(
         // Diagnostics Checklist
         Text(
             text = "DIAGNOSTIC TEST REPORT",
-            color = NeonIndigoLight,
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
@@ -1485,20 +1474,20 @@ fun ReviewAndTestScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(DarkSurface)
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(
-                        color = NeonIndigoLight,
+                        color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 3.dp,
                         modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "Running API diagnostic tests...",
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
@@ -1529,13 +1518,13 @@ fun ReviewAndTestScreen(
                     Column {
                         Text(
                             text = if (isAllPassed) "Diagnostics Successful" else "Diagnostics Warning / Failed",
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
                             text = report.summary,
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp
                         )
                     }
@@ -1557,7 +1546,7 @@ fun ReviewAndTestScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(DarkSurfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1571,13 +1560,13 @@ fun ReviewAndTestScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = step.title,
-                                color = TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp
                             )
                             Text(
                                 text = step.detail,
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 10.sp
                             )
                         }
@@ -1587,7 +1576,7 @@ fun ReviewAndTestScreen(
         } else {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
                     modifier = Modifier
@@ -1597,13 +1586,13 @@ fun ReviewAndTestScreen(
                 ) {
                     Text(
                         text = "Ready to test '${config.name}'",
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = onRunTest,
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(

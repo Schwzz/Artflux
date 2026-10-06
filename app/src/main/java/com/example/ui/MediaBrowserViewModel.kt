@@ -47,9 +47,21 @@ data class FeedState(
 class MediaBrowserViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = SourceRepository(application.applicationContext)
     private val preferencesRepository = PreferencesRepository(application.applicationContext)
+    private val savesRepository = com.example.data.SavesRepository(application.applicationContext)
     private val apiClient = MediaApiClient()
 
     val sources: StateFlow<List<MediaSourceConfig>> = repository.sources
+
+    // --- Saves & Collections ---
+    val savedItems: StateFlow<List<MediaItem>> = savesRepository.savedItems
+    val savedIds: StateFlow<Set<String>> = savesRepository.savedIds
+    val collections: StateFlow<List<com.example.model.ArtCollection>> = savesRepository.collections
+
+    private val _selectedCollectionId = MutableStateFlow<String?>(null)
+    val selectedCollectionId: StateFlow<String?> = _selectedCollectionId.asStateFlow()
+
+    private val _addToCollectionItem = MutableStateFlow<MediaItem?>(null)
+    val addToCollectionItem: StateFlow<MediaItem?> = _addToCollectionItem.asStateFlow()
 
     // --- Preferences (Persistent) ---
     val theme: StateFlow<AppTheme> = preferencesRepository.theme
@@ -168,6 +180,60 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
 
     fun setLoopVideoPlayback(enabled: Boolean) {
         preferencesRepository.setLoopVideo(enabled)
+    }
+
+    // ==========================================
+    // SAVES & COLLECTIONS METHODS
+    // ==========================================
+
+    fun isSaved(mediaId: String): Boolean = savesRepository.isSaved(mediaId)
+
+    fun toggleSave(item: MediaItem) {
+        val wasSaved = isSaved(item.id)
+        savesRepository.toggleSave(item)
+        _snackbarMessage.value = if (wasSaved) "Removed from Saved" else "Saved to Library!"
+    }
+
+    fun createCollection(name: String) {
+        val col = savesRepository.createCollection(name)
+        _snackbarMessage.value = "Collection '${col.name}' created!"
+    }
+
+    fun renameCollection(collectionId: String, newName: String) {
+        savesRepository.renameCollection(collectionId, newName)
+        _snackbarMessage.value = "Collection renamed"
+    }
+
+    fun deleteCollection(collectionId: String) {
+        savesRepository.deleteCollection(collectionId)
+        if (_selectedCollectionId.value == collectionId) {
+            _selectedCollectionId.value = null
+        }
+        _snackbarMessage.value = "Collection deleted"
+    }
+
+    fun toggleMediaInCollection(collectionId: String, mediaItem: MediaItem) {
+        savesRepository.toggleMediaInCollection(collectionId, mediaItem)
+    }
+
+    fun openAddToCollectionDialog(item: MediaItem) {
+        _addToCollectionItem.value = item
+    }
+
+    fun closeAddToCollectionDialog() {
+        _addToCollectionItem.value = null
+    }
+
+    fun selectCollection(collectionId: String) {
+        _selectedCollectionId.value = collectionId
+    }
+
+    fun clearSelectedCollection() {
+        _selectedCollectionId.value = null
+    }
+
+    fun getItemsForCollection(collectionId: String): List<MediaItem> {
+        return savesRepository.getMediaForCollection(collectionId)
     }
 
     // ==========================================

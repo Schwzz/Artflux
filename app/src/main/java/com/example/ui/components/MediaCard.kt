@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -60,6 +62,8 @@ fun MediaCard(
     onTagClick: (String) -> Unit = {},
     quality: ThumbnailQuality = ThumbnailQuality.DEFAULT,
     blurNsfw: Boolean = false,
+    isSaved: Boolean = false,
+    onToggleSave: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -248,6 +252,30 @@ fun MediaCard(
                         }
                     }
                     else -> {}
+                }
+            }
+
+            // Save / Bookmark overlay button
+            if (onToggleSave != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSaved) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.45f)
+                        )
+                        .clickable { onToggleSave() }
+                        .testTag("save_card_button_${item.id}"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = if (isSaved) "Unsave artwork" else "Save artwork",
+                        tint = if (isSaved) MaterialTheme.colorScheme.onPrimary else Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }

@@ -38,8 +38,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
@@ -117,7 +120,10 @@ fun LightboxViewer(
     onNext: () -> Unit = {},
     onClose: () -> Unit,
     onDownload: () -> Unit,
-    onTagClick: (String) -> Unit
+    onTagClick: (String) -> Unit,
+    isSaved: (String) -> Boolean = { false },
+    onToggleSave: ((MediaItem) -> Unit)? = null,
+    onOpenAddToCollection: ((MediaItem) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val effectiveItems = if (itemsList.isNotEmpty()) itemsList else listOf(item)
@@ -637,6 +643,44 @@ fun LightboxViewer(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Save / Bookmark Button
+                    if (onToggleSave != null) {
+                        val currentSaved = isSaved(currentItem.id)
+                        IconButton(
+                            onClick = { onToggleSave(currentItem) },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (currentSaved) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                .testTag("lightbox_save_button")
+                        ) {
+                            Icon(
+                                imageVector = if (currentSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = if (currentSaved) "Unsave artwork" else "Save artwork",
+                                tint = if (currentSaved) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Add to Collection Button
+                    if (onOpenAddToCollection != null) {
+                        IconButton(
+                            onClick = { onOpenAddToCollection(currentItem) },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .testTag("lightbox_collection_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderSpecial,
+                                contentDescription = "Add to collection",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
                     // Info Button
                     IconButton(
                         onClick = { showInfoSheet = !showInfoSheet },
