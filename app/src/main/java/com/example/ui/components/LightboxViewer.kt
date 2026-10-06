@@ -98,19 +98,8 @@ import java.util.concurrent.TimeUnit
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaType
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EmeraldSafe
-import com.example.ui.theme.MagentaAccent
-import com.example.ui.theme.NeonIndigo
-import com.example.ui.theme.NeonIndigoLight
 import com.example.ui.theme.RoseBadge
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 import com.example.util.ArtfluxImageLoader
 import com.example.util.ArtfluxNetwork
 
@@ -156,7 +145,7 @@ fun LightboxViewer(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground.copy(alpha = 0.98f))
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
             .testTag("lightbox_viewer")
     ) {
         // Horizontal Pager for fluid swipe navigation
@@ -510,7 +499,7 @@ fun LightboxViewer(
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(
-                                    color = NeonIndigoLight,
+                                    color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 3.dp,
                                     modifier = Modifier.size(32.dp)
                                 )
@@ -589,14 +578,14 @@ fun LightboxViewer(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(DarkSurface.copy(alpha = 0.9f))
-                    .border(1.dp, CardBorder, CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                     .testTag("lightbox_close_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close viewer",
-                    tint = TextPrimary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -607,20 +596,20 @@ fun LightboxViewer(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(MagentaAccent)
+                            .background(MaterialTheme.colorScheme.tertiary)
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("GIF", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("GIF", color = MaterialTheme.colorScheme.onTertiary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 MediaType.VIDEO -> {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(CyanAccent)
+                            .background(MaterialTheme.colorScheme.secondary)
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("VIDEO", color = DarkBackground, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("VIDEO", color = MaterialTheme.colorScheme.onSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 else -> {}
@@ -639,8 +628,8 @@ fun LightboxViewer(
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .border(1.dp, CardBorder, RoundedCornerShape(24.dp)),
-                color = DarkSurface.copy(alpha = 0.92f),
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp)),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                 tonalElevation = 6.dp
             ) {
                 Row(
@@ -654,13 +643,13 @@ fun LightboxViewer(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(if (showInfoSheet) NeonIndigo else Color.Transparent)
+                            .background(if (showInfoSheet) MaterialTheme.colorScheme.primary else Color.Transparent)
                             .testTag("lightbox_info_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = "Media details",
-                            tint = if (showInfoSheet) TextPrimary else TextSecondary,
+                            tint = if (showInfoSheet) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -683,7 +672,7 @@ fun LightboxViewer(
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share media",
-                            tint = TextSecondary,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -694,13 +683,13 @@ fun LightboxViewer(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(NeonIndigo)
+                            .background(MaterialTheme.colorScheme.primary)
                             .testTag("lightbox_download_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Download,
                             contentDescription = "Download media file",
-                            tint = TextPrimary,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -739,8 +728,8 @@ fun MediaDetailsSheet(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .border(1.dp, CardBorder, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-        color = DarkSurface,
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+        color = MaterialTheme.colorScheme.surface,
         tonalElevation = 10.dp
     ) {
         Column(
@@ -759,7 +748,7 @@ fun MediaDetailsSheet(
                 Text(
                     text = "Media Details",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -769,13 +758,13 @@ fun MediaDetailsSheet(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(DarkSurfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .testTag("details_close_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close details panel",
-                        tint = TextPrimary,
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -793,13 +782,13 @@ fun MediaDetailsSheet(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(NeonIndigo.copy(alpha = 0.2f))
-                        .border(1.dp, NeonIndigo.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = item.sourceName,
-                        color = NeonIndigoLight,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -810,7 +799,7 @@ fun MediaDetailsSheet(
                     MediaRating.SAFE -> Pair(EmeraldSafe, "SAFE")
                     MediaRating.SUGGESTIVE -> Pair(Color(0xFFF59E0B), "SUGGESTIVE")
                     MediaRating.ADULT -> Pair(RoseBadge, "ADULT")
-                    else -> Pair(TextTertiary, "UNKNOWN")
+                    else -> Pair(MaterialTheme.colorScheme.onSurfaceVariant, "UNKNOWN")
                 }
                 Box(
                     modifier = Modifier
@@ -831,12 +820,12 @@ fun MediaDetailsSheet(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(DarkSurfaceVariant)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = item.mediaType.label,
-                        color = TextSecondary,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -855,14 +844,14 @@ fun MediaDetailsSheet(
                     Text(
                         text = item.title,
                         style = MaterialTheme.typography.titleSmall,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp
                     )
                     if (!item.author.isNullOrBlank()) {
                         Text(
                             text = "Artist / Author: ${item.author}",
-                            color = TextSecondary,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(top = 2.dp)
                         )
@@ -882,13 +871,13 @@ fun MediaDetailsSheet(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(DarkSurfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .testTag("details_open_browser_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.OpenInBrowser,
                             contentDescription = "Open post in browser",
-                            tint = NeonIndigoLight,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -900,7 +889,7 @@ fun MediaDetailsSheet(
             // Organized Metadata Section
             Text(
                 text = "METADATA",
-                color = TextTertiary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp,
@@ -910,7 +899,7 @@ fun MediaDetailsSheet(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier
@@ -946,7 +935,7 @@ fun MediaDetailsSheet(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = item.description,
-                    color = TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -957,7 +946,7 @@ fun MediaDetailsSheet(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "TAGS (${item.tags.size})",
-                    color = TextTertiary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -972,15 +961,15 @@ fun MediaDetailsSheet(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(DarkSurfaceVariant)
-                                .border(1.dp, CardBorder, RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
                                 .clickable { onTagClick(tag) }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                                 .testTag("detail_tag_chip_$tag")
                         ) {
                             Text(
                                 text = "#$tag",
-                                color = NeonIndigoLight,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -999,7 +988,7 @@ fun MetadataRow(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = TextSecondary, fontSize = 12.sp)
-        Text(text = value, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(text = label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Text(text = value, color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }

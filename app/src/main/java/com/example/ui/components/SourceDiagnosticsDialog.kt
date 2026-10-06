@@ -46,17 +46,8 @@ import androidx.compose.ui.unit.sp
 import com.example.model.DiagnosticStatus
 import com.example.model.MediaSourceConfig
 import com.example.model.SourceDiagnosticReport
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EmeraldSafe
-import com.example.ui.theme.NeonIndigo
-import com.example.ui.theme.NeonIndigoLight
 import com.example.ui.theme.RoseBadge
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 
 @Composable
 fun SourceDiagnosticsDialog(
@@ -258,7 +249,7 @@ fun SourceDiagnosticsDialog(
                             Column {
                                 Text(
                                     text = "SAMPLE ITEM LOADED",
-                                    color = CyanAccent,
+                                    color = MaterialTheme.colorScheme.secondary,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.5.sp

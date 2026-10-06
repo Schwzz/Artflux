@@ -263,8 +263,8 @@ fun AddSourceDialog(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DarkBackground),
-            color = DarkBackground
+                .background(MaterialTheme.colorScheme.background),
+            color = MaterialTheme.colorScheme.background
         ) {
             Column(
                 modifier = Modifier
@@ -291,12 +291,12 @@ fun AddSourceDialog(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(DarkSurfaceVariant)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = TextPrimary
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Spacer(modifier = Modifier.width(10.dp))
@@ -312,7 +312,7 @@ fun AddSourceDialog(
                                     AddSourceStep.REVIEW_AND_TEST -> "Review & Diagnostics"
                                 },
                                 style = MaterialTheme.typography.titleLarge,
-                                color = TextPrimary,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
@@ -324,7 +324,7 @@ fun AddSourceDialog(
                                     AddSourceStep.MANUAL_FORM -> "Configure endpoint, mappings & authentication"
                                     AddSourceStep.REVIEW_AND_TEST -> "Verify connection and response before saving"
                                 },
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
                         }
@@ -335,13 +335,13 @@ fun AddSourceDialog(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(DarkSurfaceVariant)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .testTag("close_add_source_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextPrimary
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -1641,7 +1641,7 @@ fun BadgePill(label: String, color: Color) {
 fun FormSectionTitle(title: String) {
     Text(
         text = title,
-        color = NeonIndigoLight,
+        color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.Bold,
         fontSize = 13.sp,
         modifier = Modifier.padding(top = 4.dp)
@@ -1659,7 +1659,7 @@ fun FormTextField(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(bottom = 3.dp)
@@ -1667,19 +1667,19 @@ fun FormTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = TextTertiary, fontSize = 12.sp) },
+            placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag(testTag),
             shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = DarkSurface,
-                unfocusedContainerColor = DarkSurface,
-                focusedBorderColor = NeonIndigo,
-                unfocusedBorderColor = CardBorder,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
     }

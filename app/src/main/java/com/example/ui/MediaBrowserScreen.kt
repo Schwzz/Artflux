@@ -112,16 +112,7 @@ import com.example.ui.components.DownloadConfigDialog
 import com.example.ui.components.LightboxViewer
 import com.example.ui.components.MediaCard
 import com.example.ui.components.SourceDiagnosticsDialog
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
-import com.example.ui.theme.NeonIndigo
-import com.example.ui.theme.NeonIndigoLight
 import com.example.ui.theme.RoseBadge
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 
 enum class MainTab {
     HOME, SEARCH, SETTINGS
@@ -415,7 +406,7 @@ fun ArtfluxBottomBar(
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onSurface,
                 selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                indicatorColor = NeonIndigo.copy(alpha = 0.25f),
+                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
@@ -429,7 +420,7 @@ fun ArtfluxBottomBar(
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onSurface,
                 selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                indicatorColor = NeonIndigo.copy(alpha = 0.25f),
+                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
@@ -443,7 +434,7 @@ fun ArtfluxBottomBar(
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onSurface,
                 selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                indicatorColor = NeonIndigo.copy(alpha = 0.25f),
+                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                 unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
             ),
@@ -483,13 +474,13 @@ fun HomeScreen(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(NeonIndigo),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = TextPrimary,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -517,7 +508,7 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.Default.Tune,
                         contentDescription = "Feed settings",
-                        tint = NeonIndigoLight,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -533,7 +524,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(NeonIndigo)
+                                .background(MaterialTheme.colorScheme.primary)
                         )
                     }
                 }
@@ -604,7 +595,7 @@ fun HomeScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         CircularProgressIndicator(
-                                            color = NeonIndigoLight,
+                                            color = MaterialTheme.colorScheme.primary,
                                             strokeWidth = 2.dp,
                                             modifier = Modifier.size(24.dp)
                                         )
@@ -673,7 +664,7 @@ fun SearchScreen(
                         platformStyle = PlatformTextStyle(includeFontPadding = false)
                     ),
                     singleLine = true,
-                    cursorBrush = SolidColor(NeonIndigo),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = {
                         focusManager.clearFocus()
@@ -687,7 +678,7 @@ fun SearchScreen(
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(
                                     width = 1.dp,
-                                    color = NeonIndigo,
+                                    color = MaterialTheme.colorScheme.primary,
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .padding(horizontal = 14.dp),
@@ -696,7 +687,7 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Search",
-                                tint = NeonIndigoLight,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -775,7 +766,7 @@ fun SearchScreen(
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = NeonIndigoLight,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
@@ -912,7 +903,7 @@ fun SearchScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         CircularProgressIndicator(
-                                            color = NeonIndigoLight,
+                                            color = MaterialTheme.colorScheme.primary,
                                             strokeWidth = 2.dp,
                                             modifier = Modifier.size(24.dp)
                                         )
@@ -1591,7 +1582,7 @@ fun EmptyStateView(
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onReset,
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(
@@ -1659,7 +1650,7 @@ fun ErrorStateView(
 
             Button(
                 onClick = onRetry,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonIndigo),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(

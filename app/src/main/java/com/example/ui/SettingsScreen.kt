@@ -70,19 +70,8 @@ import com.example.model.AppTheme
 import com.example.model.ColorPalette
 import com.example.model.MediaSourceConfig
 import com.example.model.ThumbnailQuality
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
 import com.example.ui.theme.EmeraldSafe
-import com.example.ui.theme.MagentaAccent
-import com.example.ui.theme.NeonIndigo
-import com.example.ui.theme.NeonIndigoLight
 import com.example.ui.theme.RoseBadge
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.TextTertiary
 
 @Composable
 fun SettingsScreen(
@@ -548,12 +537,12 @@ fun SettingsScreen(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .background(CyanAccent.copy(alpha = 0.2f))
+                                                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f))
                                                 .padding(horizontal = 5.dp, vertical = 1.dp)
                                         ) {
                                             Text(
                                                 text = "Custom",
-                                                color = CyanAccent,
+                                                color = MaterialTheme.colorScheme.secondary,
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -638,7 +627,7 @@ fun SettingsScreen(
                                                     imageVector = Icons.Default.Edit,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(18.dp),
-                                                    tint = CyanAccent
+                                                    tint = MaterialTheme.colorScheme.primary
                                                 )
                                             },
                                             onClick = {

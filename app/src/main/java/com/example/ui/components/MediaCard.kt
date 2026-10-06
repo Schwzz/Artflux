@@ -47,13 +47,6 @@ import com.example.model.MediaRating
 import com.example.model.MediaType
 import com.example.model.ThumbnailQuality
 import com.example.util.ArtfluxBlurTransformation
-import com.example.ui.theme.CardBorder
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.DarkBackground
-import com.example.ui.theme.DarkSurface
-import com.example.ui.theme.DarkSurfaceVariant
-import com.example.ui.theme.MagentaAccent
-import com.example.ui.theme.NeonIndigo
 import com.example.ui.theme.RoseBadge
 import androidx.compose.material3.MaterialTheme
 import com.example.data.MediaApiClient
@@ -131,7 +124,7 @@ fun MediaCard(
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = NeonIndigo,
+                                color = MaterialTheme.colorScheme.primary,
                                 strokeWidth = 2.dp
                             )
                         }
@@ -184,7 +177,7 @@ fun MediaCard(
                         Icon(
                             imageVector = if (item.mediaType == MediaType.VIDEO) Icons.Default.PlayArrow else Icons.Default.Image,
                             contentDescription = item.title,
-                            tint = if (item.mediaType == MediaType.VIDEO) CyanAccent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            tint = if (item.mediaType == MediaType.VIDEO) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -211,7 +204,7 @@ fun MediaCard(
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "Play video",
-                        tint = CyanAccent,
+                        tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -226,7 +219,7 @@ fun MediaCard(
                                 .align(Alignment.TopEnd)
                                 .padding(6.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MagentaAccent.copy(alpha = 0.85f))
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f))
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -243,7 +236,7 @@ fun MediaCard(
                                 .align(Alignment.TopEnd)
                                 .padding(6.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(CyanAccent.copy(alpha = 0.85f))
+                                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f))
                                 .padding(horizontal = 5.dp, vertical = 2.dp)
                         ) {
                             Text(
