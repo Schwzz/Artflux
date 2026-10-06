@@ -465,7 +465,8 @@ fun MediaBrowserScreen(
                 },
                 isSaved = { viewModel.isSaved(it) },
                 onToggleSave = { viewModel.toggleSave(it) },
-                onOpenAddToCollection = { viewModel.openAddToCollectionDialog(it) }
+                onOpenAddToCollection = { viewModel.openAddToCollectionDialog(it) },
+                onUndoUnsave = { viewModel.undoLastUnsave() }
             )
         }
     }

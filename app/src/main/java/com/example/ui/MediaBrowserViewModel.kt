@@ -194,6 +194,10 @@ class MediaBrowserViewModel(application: Application) : AndroidViewModel(applica
         _snackbarMessage.value = if (wasSaved) "Removed from Saved" else "Saved to Library!"
     }
 
+    fun undoLastUnsave() {
+        savesRepository.undoLastUnsave()
+    }
+
     fun createCollection(name: String) {
         val col = savesRepository.createCollection(name)
         _snackbarMessage.value = "Collection '${col.name}' created!"

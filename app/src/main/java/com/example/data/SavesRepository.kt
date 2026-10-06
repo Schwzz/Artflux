@@ -80,6 +80,9 @@ class SavesRepository(context: Context) {
         prefs.edit().putString("art_collections_json", array.toString()).apply()
     }
 
+    private var lastUnsavedItem: MediaItem? = null
+    private var lastUnsavedCollections: List<String> = emptyList()
+
     fun isSaved(mediaId: String): Boolean {
         return _savedIds.value.contains(mediaId)
     }
@@ -92,6 +95,12 @@ class SavesRepository(context: Context) {
     }
 
     fun unsaveItem(mediaId: String) {
+        val item = _savedItemsMap.value[mediaId]
+        if (item != null) {
+            lastUnsavedItem = item
+            lastUnsavedCollections = _collections.value.filter { mediaId in it.mediaIds }.map { it.id }
+        }
+
         val currentMap = _savedItemsMap.value.toMutableMap()
         currentMap.remove(mediaId)
         _savedItemsMap.value = currentMap
@@ -106,6 +115,23 @@ class SavesRepository(context: Context) {
         }
         _collections.value = updatedCols
         persistCollections()
+    }
+
+    fun undoLastUnsave() {
+        val item = lastUnsavedItem ?: return
+        saveItem(item)
+        val collectionIds = lastUnsavedCollections
+        if (collectionIds.isNotEmpty()) {
+            val updated = _collections.value.map { col ->
+                if (col.id in collectionIds && item.id !in col.mediaIds) {
+                    col.copy(mediaIds = col.mediaIds + item.id)
+                } else col
+            }
+            _collections.value = updated
+            persistCollections()
+        }
+        lastUnsavedItem = null
+        lastUnsavedCollections = emptyList()
     }
 
     fun toggleSave(item: MediaItem) {

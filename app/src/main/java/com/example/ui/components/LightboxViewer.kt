@@ -134,7 +134,8 @@ fun LightboxViewer(
     onTagClick: (String) -> Unit,
     isSaved: (String) -> Boolean = { false },
     onToggleSave: ((MediaItem) -> Unit)? = null,
-    onOpenAddToCollection: ((MediaItem) -> Unit)? = null
+    onOpenAddToCollection: ((MediaItem) -> Unit)? = null,
+    onUndoUnsave: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val effectiveItems = if (itemsList.isNotEmpty()) itemsList else listOf(item)
@@ -675,6 +676,18 @@ fun LightboxViewer(
                                             onOpenAddToCollection?.invoke(currentItem)
                                         }
                                     }
+                                } else {
+                                    coroutineScope.launch {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Removed from Saves",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            onUndoUnsave?.invoke()
+                                        }
+                                    }
                                 }
                             },
                             modifier = Modifier
@@ -685,7 +698,7 @@ fun LightboxViewer(
                         ) {
                             Icon(
                                 imageVector = if (currentSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = if (currentSaved) "Unsave artwork" else "Save artwork",
+                                contentDescription = if (currentSaved) "Remove from Saves" else "Save artwork",
                                 tint = if (currentSaved) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(22.dp)
                             )

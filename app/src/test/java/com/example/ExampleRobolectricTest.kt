@@ -2219,5 +2219,39 @@ class ExampleRobolectricTest {
     assertEquals("2", updatedList[1].id)
     assertEquals("3", updatedList[2].id)
   }
+
+  @Test
+  fun testUnsaveBackupAndUndoLastUnsavePreservesCollections() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val savesRepo = com.example.data.SavesRepository(context)
+
+    val item = MediaItem(
+      id = "test_undo_item_99",
+      title = "Test Undo Artwork",
+      previewUrl = "https://img.com/undo.jpg",
+      actualMediaUrl = "https://img.com/undo.jpg"
+    )
+
+    // Create a collection
+    val col = savesRepo.createCollection("Test Undo Collection")
+
+    // Add media to collection (which also saves the item)
+    savesRepo.addMediaToCollection(col.id, item)
+
+    assertTrue(savesRepo.isSaved(item.id))
+    assertTrue(savesRepo.getMediaForCollection(col.id).any { it.id == item.id })
+
+    // Unsave the item
+    savesRepo.unsaveItem(item.id)
+
+    assertFalse(savesRepo.isSaved(item.id))
+    assertFalse(savesRepo.getMediaForCollection(col.id).any { it.id == item.id })
+
+    // Undo the unsave action
+    savesRepo.undoLastUnsave()
+
+    assertTrue(savesRepo.isSaved(item.id))
+    assertTrue(savesRepo.getMediaForCollection(col.id).any { it.id == item.id })
+  }
 }
 

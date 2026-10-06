@@ -255,29 +255,6 @@ fun MediaCard(
                 }
             }
 
-            // Save / Bookmark overlay button
-            if (onToggleSave != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(6.dp)
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isSaved) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.45f)
-                        )
-                        .clickable { onToggleSave() }
-                        .testTag("save_card_button_${item.id}"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = if (isSaved) "Unsave artwork" else "Save artwork",
-                        tint = if (isSaved) MaterialTheme.colorScheme.onPrimary else Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
         }
     }
 }
