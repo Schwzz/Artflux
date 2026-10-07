@@ -127,7 +127,7 @@ private val CrimsonFluxLightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun MediaBrowserTheme(
+fun ArtfluxTheme(
     theme: AppTheme = AppTheme.DARK,
     colorPalette: ColorPalette = ColorPalette.ARCTIC_SIGNAL,
     content: @Composable () -> Unit

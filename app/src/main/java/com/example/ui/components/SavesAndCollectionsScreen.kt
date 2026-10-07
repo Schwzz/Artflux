@@ -73,8 +73,6 @@ fun SavesAndCollectionsScreen(
     collections: List<ArtCollection>,
     thumbnailQuality: ThumbnailQuality,
     blurNsfw: Boolean,
-    isSaved: (String) -> Boolean,
-    onToggleSave: (MediaItem) -> Unit,
     onCreateCollection: (String) -> Unit,
     onSelectCollection: (String) -> Unit,
     onBack: () -> Unit,
@@ -210,9 +208,7 @@ fun SavesAndCollectionsScreen(
                                 item = item,
                                 onClick = { onOpenLightbox(index, savedItems) },
                                 quality = thumbnailQuality,
-                                blurNsfw = blurNsfw,
-                                isSaved = isSaved(item.id),
-                                onToggleSave = { onToggleSave(item) }
+                                blurNsfw = blurNsfw
                             )
                         }
                     }

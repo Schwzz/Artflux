@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -57,8 +55,6 @@ fun CollectionDetailScreen(
     items: List<MediaItem>,
     thumbnailQuality: ThumbnailQuality,
     blurNsfw: Boolean,
-    isSaved: (String) -> Boolean,
-    onToggleSave: (MediaItem) -> Unit,
     onRemoveFromCollection: (String, String) -> Unit,
     onRenameCollection: (String, String) -> Unit,
     onDeleteCollection: (String) -> Unit,
@@ -189,9 +185,7 @@ fun CollectionDetailScreen(
                             item = item,
                             onClick = { onOpenLightbox(index, items) },
                             quality = thumbnailQuality,
-                            blurNsfw = blurNsfw,
-                            isSaved = isSaved(item.id),
-                            onToggleSave = { onToggleSave(item) }
+                            blurNsfw = blurNsfw
                         )
                         IconButton(
                             onClick = { onRemoveFromCollection(collection.id, item.id) },

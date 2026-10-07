@@ -66,8 +66,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -98,13 +96,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.model.AppTheme
 import com.example.model.FilterState
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaSourceConfig
 import com.example.model.MediaType
-import com.example.model.Orientation
 import com.example.model.SortOption
 import com.example.model.ThumbnailQuality
 import com.example.ui.components.AddSourceDialog
@@ -225,8 +221,6 @@ fun MediaBrowserScreen(
                             items = viewModel.getItemsForCollection(selectedCol.id),
                             thumbnailQuality = thumbnailQuality,
                             blurNsfw = blurNsfw,
-                            isSaved = { viewModel.isSaved(it) },
-                            onToggleSave = { viewModel.toggleSave(it) },
                             onRemoveFromCollection = { colId, mediaId ->
                                 val mediaItem = savedItems.find { it.id == mediaId }
                                 if (mediaItem != null) {
@@ -254,8 +248,6 @@ fun MediaBrowserScreen(
                         collections = collections,
                         thumbnailQuality = thumbnailQuality,
                         blurNsfw = blurNsfw,
-                        isSaved = { viewModel.isSaved(it) },
-                        onToggleSave = { viewModel.toggleSave(it) },
                         onCreateCollection = { viewModel.createCollection(it) },
                         onSelectCollection = { viewModel.selectCollection(it) },
                         onBack = { isSavesAndCollectionsOpen = false },
@@ -287,9 +279,7 @@ fun MediaBrowserScreen(
                                     currentTab = MainTab.SEARCH
                                     viewModel.setSearchQuery(tag)
                                     viewModel.executeSearchQuery()
-                                },
-                                savedIds = savedIds,
-                                onToggleSave = { viewModel.toggleSave(it) }
+                                }
                             )
                         }
                         MainTab.SEARCH -> {
@@ -318,9 +308,7 @@ fun MediaBrowserScreen(
                                 onTagClick = { tag ->
                                     viewModel.setSearchQuery(tag)
                                     viewModel.executeSearchQuery()
-                                },
-                                savedIds = savedIds,
-                                onToggleSave = { viewModel.toggleSave(it) }
+                                }
                             )
                         }
                         MainTab.SETTINGS -> {
@@ -539,9 +527,7 @@ fun HomeScreen(
     onResetFilters: () -> Unit,
     onOpenLightbox: (Int) -> Unit,
     onDownload: (MediaItem) -> Unit,
-    onTagClick: (String) -> Unit,
-    savedIds: Set<String> = emptySet(),
-    onToggleSave: ((MediaItem) -> Unit)? = null
+    onTagClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -665,8 +651,6 @@ fun HomeScreen(
                                     item = item,
                                     quality = thumbnailQuality,
                                     blurNsfw = blurNsfw,
-                                    isSaved = savedIds.contains(item.id),
-                                    onToggleSave = { onToggleSave?.invoke(item) },
                                     onClick = { onOpenLightbox(index) },
                                     onDownloadClick = { onDownload(item) },
                                     onTagClick = onTagClick
@@ -715,9 +699,7 @@ fun SearchScreen(
     onResetFilters: () -> Unit,
     onOpenLightbox: (Int) -> Unit,
     onDownload: (MediaItem) -> Unit,
-    onTagClick: (String) -> Unit,
-    savedIds: Set<String> = emptySet(),
-    onToggleSave: ((MediaItem) -> Unit)? = null
+    onTagClick: (String) -> Unit
 ) {
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isFilterSheetOpen by remember { mutableStateOf(false) }
@@ -977,8 +959,6 @@ fun SearchScreen(
                                     item = item,
                                     quality = thumbnailQuality,
                                     blurNsfw = blurNsfw,
-                                    isSaved = savedIds.contains(item.id),
-                                    onToggleSave = { onToggleSave?.invoke(item) },
                                     onClick = { onOpenLightbox(index) },
                                     onDownloadClick = { onDownload(item) },
                                     onTagClick = onTagClick

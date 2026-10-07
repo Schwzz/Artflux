@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,15 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -44,14 +41,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.example.data.MediaApiClient
 import com.example.model.MediaItem
 import com.example.model.MediaRating
 import com.example.model.MediaType
 import com.example.model.ThumbnailQuality
 import com.example.util.ArtfluxBlurTransformation
-import com.example.ui.theme.RoseBadge
-import androidx.compose.material3.MaterialTheme
-import com.example.data.MediaApiClient
 import com.example.util.ArtfluxImageLoader
 
 @Composable
@@ -62,8 +57,6 @@ fun MediaCard(
     onTagClick: (String) -> Unit = {},
     quality: ThumbnailQuality = ThumbnailQuality.DEFAULT,
     blurNsfw: Boolean = false,
-    isSaved: Boolean = false,
-    onToggleSave: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current

@@ -2,7 +2,6 @@ package com.example
 
 import android.app.Application
 import android.content.Context
-import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.MediaApiClient
 import com.example.model.FilterState

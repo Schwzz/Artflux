@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.MediaBrowserScreen
 import com.example.ui.MediaBrowserViewModel
-import com.example.ui.theme.MediaBrowserTheme
+import com.example.ui.theme.ArtfluxTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MediaBrowserViewModel by viewModels()
@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val theme by viewModel.theme.collectAsStateWithLifecycle()
             val colorPalette by viewModel.colorPalette.collectAsStateWithLifecycle()
-            MediaBrowserTheme(theme = theme, colorPalette = colorPalette) {
+            ArtfluxTheme(theme = theme, colorPalette = colorPalette) {
                 MediaBrowserScreen(
                     viewModel = viewModel,
                     modifier = Modifier.fillMaxSize()
