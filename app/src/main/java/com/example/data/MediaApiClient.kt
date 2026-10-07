@@ -25,20 +25,21 @@ class MediaApiClient {
     ): Result<List<MediaItem>> = withContext(Dispatchers.IO) {
         try {
             val request = MediaRequestBuilder.buildFetchRequest(source, query, page)
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(
-                    Exception("HTTP ${response.code}: ${response.message}")
-                )
-            }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        Exception("HTTP ${response.code}: ${response.message}")
+                    )
+                }
 
-            val bodyString = response.body?.string().orEmpty()
-            if (bodyString.isBlank()) {
-                return@withContext Result.success(emptyList())
-            }
+                val bodyString = response.body?.string().orEmpty()
+                if (bodyString.isBlank()) {
+                    return@withContext Result.success(emptyList())
+                }
 
-            val items = MediaResponseParser.parseMediaItems(source, bodyString)
-            Result.success(items)
+                val items = MediaResponseParser.parseMediaItems(source, bodyString)
+                Result.success(items)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

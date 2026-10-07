@@ -85,23 +85,23 @@ fun VideoPlayerContent(
                     for ((k, v) in ArtfluxNetwork.getHeadersForUrl(item.actualMediaUrl)) {
                         req.header(k, v)
                     }
-                    val resp = okHttpClient.newCall(req.build()).execute()
-                    val code = resp.code
-                    val contentType = resp.header("Content-Type")?.lowercase().orEmpty()
-                    if (code == 403) {
-                        if (playbackError == null) {
-                            playbackError = "ERROR_CODE_IO_BAD_HTTP_STATUS: HTTP 403 Forbidden (CDN anti-hotlink denied access)"
-                        }
-                    } else if (code in 400..599) {
-                        if (playbackError == null) {
-                            playbackError = "ERROR_CODE_IO_BAD_HTTP_STATUS: HTTP $code (${resp.message.ifBlank { "Error response" }})"
-                        }
-                    } else if (contentType.isNotBlank() && (contentType.contains("text/html") || contentType.contains("application/json") || contentType.contains("text/plain"))) {
-                        if (playbackError == null) {
-                            playbackError = "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED: Expected video stream but server returned '$contentType'"
+                    okHttpClient.newCall(req.build()).execute().use { resp ->
+                        val code = resp.code
+                        val contentType = resp.header("Content-Type")?.lowercase().orEmpty()
+                        if (code == 403) {
+                            if (playbackError == null) {
+                                playbackError = "ERROR_CODE_IO_BAD_HTTP_STATUS: HTTP 403 Forbidden (CDN anti-hotlink denied access)"
+                            }
+                        } else if (code in 400..599) {
+                            if (playbackError == null) {
+                                playbackError = "ERROR_CODE_IO_BAD_HTTP_STATUS: HTTP $code (${resp.message.ifBlank { "Error response" }})"
+                            }
+                        } else if (contentType.isNotBlank() && (contentType.contains("text/html") || contentType.contains("application/json") || contentType.contains("text/plain"))) {
+                            if (playbackError == null) {
+                                playbackError = "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED: Expected video stream but server returned '$contentType'"
+                            }
                         }
                     }
-                    resp.close()
                 } catch (_: Exception) {
                 }
             }

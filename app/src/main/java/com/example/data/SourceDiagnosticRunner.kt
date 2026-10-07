@@ -60,8 +60,15 @@ class SourceDiagnosticRunner(private val client: OkHttpClient) {
             }
         }
 
-        val response = try {
-            client.newCall(requestBuilder.build()).execute()
+        val (httpCode, isHttpOk, httpMessage, bodyString) = try {
+            client.newCall(requestBuilder.build()).execute().use { response ->
+                ResponseSnapshot(
+                    code = response.code,
+                    isSuccessful = response.isSuccessful,
+                    message = response.message,
+                    bodyString = response.body?.string().orEmpty()
+                )
+            }
         } catch (e: Exception) {
             return@withContext SourceDiagnosticReport(
                 isSuccess = false,
@@ -81,14 +88,11 @@ class SourceDiagnosticRunner(private val client: OkHttpClient) {
             )
         }
 
-        val httpCode = response.code
-        val isHttpOk = response.isSuccessful
-
         // 1. Connection Step
         if (isHttpOk) {
             steps.add(DiagnosticStep("Connection", DiagnosticStatus.PASSED, "HTTP $httpCode OK — Successfully reached endpoint."))
         } else {
-            steps.add(DiagnosticStep("Connection", DiagnosticStatus.FAILED, "HTTP $httpCode ${response.message}"))
+            steps.add(DiagnosticStep("Connection", DiagnosticStatus.FAILED, "HTTP $httpCode $httpMessage"))
         }
 
         // 2. Authentication Step
@@ -123,7 +127,6 @@ class SourceDiagnosticRunner(private val client: OkHttpClient) {
             )
         }
 
-        val bodyString = response.body?.string().orEmpty()
         if (bodyString.isBlank()) {
             steps.add(DiagnosticStep("Results", DiagnosticStatus.WARNING, "Server returned a 200 OK response with an empty body."))
             return@withContext SourceDiagnosticReport(
@@ -281,4 +284,11 @@ class SourceDiagnosticRunner(private val client: OkHttpClient) {
             sampleThumbUrl = firstParsed?.thumbnailUrl
         )
     }
+
+    private data class ResponseSnapshot(
+        val code: Int,
+        val isSuccessful: Boolean,
+        val message: String,
+        val bodyString: String
+    )
 }
