@@ -1298,6 +1298,53 @@ class ExampleRobolectricTest {
     assertFalse(resavedJson.contains("legacy_token_999"))
   }
 
+  @Test
+  fun testSourceCredentialVaultSecurityAndNoBase64Fallback() {
+    val context = ApplicationProvider.getApplicationContext<Application>()
+    val vault = com.example.data.SourceCredentialVault(context)
+    val sourceId = "test_vault_source_1"
+
+    val creds = com.example.data.SourceCredentials(
+      apiKey = "api_key_secret_abc123",
+      authHeaderValue = "Bearer header_token_xyz789",
+      authQueryParams = listOf(com.example.model.AuthParam("sig", "sig_val_456"))
+    )
+
+    // 1. Save credentials securely
+    val saveResult = vault.saveCredentials(sourceId, creds)
+    assertTrue("saveCredentials must report success", saveResult)
+
+    // 2. Verify SharedPreferences contains encrypted ciphertext, NOT plain Base64 JSON
+    val vaultPrefs = context.getSharedPreferences("artflux_secure_credentials", Context.MODE_PRIVATE)
+    val rawStored = vaultPrefs.getString("cred_$sourceId", "") ?: ""
+    assertTrue("Raw stored value must not be empty", rawStored.isNotBlank())
+
+    // Ensure the raw stored string is NOT simply base64-decoded into plaintext JSON containing secrets
+    val decodedBytes = android.util.Base64.decode(rawStored, android.util.Base64.NO_WRAP)
+    val decodedString = String(decodedBytes, java.nio.charset.StandardCharsets.UTF_8)
+    assertFalse("Raw stored string must not contain unencrypted API key", decodedString.contains("api_key_secret_abc123"))
+    assertFalse("Raw stored string must not contain unencrypted auth header", decodedString.contains("header_token_xyz789"))
+
+    // 3. Verify getCredentials correctly decrypts
+    val loadedCreds = vault.getCredentials(sourceId)
+    assertEquals("api_key_secret_abc123", loadedCreds.apiKey)
+    assertEquals("Bearer header_token_xyz789", loadedCreds.authHeaderValue)
+    assertEquals(1, loadedCreds.authQueryParams.size)
+    assertEquals("sig", loadedCreds.authQueryParams[0].key)
+    assertEquals("sig_val_456", loadedCreds.authQueryParams[0].value)
+
+    // 4. Verify invalid/corrupt ciphertext does not fall back to insecure decoding
+    vaultPrefs.edit().putString("cred_corrupt_src", "corrupted_payload_not_aes").commit()
+    val corruptLoaded = vault.getCredentials("corrupt_src")
+    assertFalse("Corrupt payload must result in empty credentials", corruptLoaded.hasCredentials)
+    assertEquals("", corruptLoaded.apiKey)
+
+    // 5. Test delete and clear
+    vault.deleteCredentials(sourceId)
+    val deletedCreds = vault.getCredentials(sourceId)
+    assertFalse(deletedCreds.hasCredentials)
+  }
+
   // --- 32. Batch 8B & Batch 9: NSFW Blur & Fullscreen Loading Optimization Tests ---
 
   @Test

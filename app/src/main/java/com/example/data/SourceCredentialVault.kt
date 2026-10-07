@@ -37,13 +37,13 @@ class SourceCredentialVault(private val context: Context) {
 
     private val secretKey: SecretKey by lazy { getOrCreateSecretKey() }
 
-    fun saveCredentials(sourceId: String, credentials: SourceCredentials) {
+    fun saveCredentials(sourceId: String, credentials: SourceCredentials): Boolean {
         if (!credentials.hasCredentials) {
             deleteCredentials(sourceId)
-            return
+            return true
         }
 
-        try {
+        return try {
             val json = JSONObject().apply {
                 put("apiKey", credentials.apiKey)
                 put("authHeaderValue", credentials.authHeaderValue)
@@ -55,17 +55,19 @@ class SourceCredentialVault(private val context: Context) {
             }
 
             val encrypted = encrypt(json.toString())
-            prefs.edit().putString(KEY_PREFIX + sourceId, encrypted).apply()
+            prefs.edit().putString(KEY_PREFIX + sourceId, encrypted).commit()
+            true
         } catch (e: Exception) {
-            // Fallback: store protected string if encryption fails
-            prefs.edit().putString(KEY_PREFIX + sourceId, encodeSimple(credentials)).apply()
+            // Never fall back to plaintext or Base64 encoding.
+            // On failure, return false and do not write insecure data.
+            false
         }
     }
 
     fun getCredentials(sourceId: String): SourceCredentials {
         val encrypted = prefs.getString(KEY_PREFIX + sourceId, null) ?: return SourceCredentials()
 
-        try {
+        return try {
             val decryptedJson = decrypt(encrypted)
             val json = JSONObject(decryptedJson)
             val apiKey = json.optString("apiKey", "")
@@ -80,10 +82,10 @@ class SourceCredentialVault(private val context: Context) {
                     }
                 }
             }
-            return SourceCredentials(apiKey, authHeaderValue, paramsList)
+            SourceCredentials(apiKey, authHeaderValue, paramsList)
         } catch (e: Exception) {
-            // Attempt decoding if stored in fallback format
-            return decodeSimple(encrypted) ?: SourceCredentials()
+            // Decryption failure (corrupt or invalid ciphertext) - do not attempt insecure decoding
+            SourceCredentials()
         }
     }
 
@@ -110,6 +112,9 @@ class SourceCredentialVault(private val context: Context) {
 
     private fun decrypt(encryptedBase64: String): String {
         val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+        if (combined.size <= GCM_IV_LENGTH) {
+            throw IllegalArgumentException("Invalid encrypted payload length")
+        }
         val iv = ByteArray(GCM_IV_LENGTH)
         val cipherText = ByteArray(combined.size - GCM_IV_LENGTH)
         System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH)
@@ -160,41 +165,6 @@ class SourceCredentialVault(private val context: Context) {
         val md = MessageDigest.getInstance("SHA-256")
         val keyBytes = md.digest(seed.toByteArray(StandardCharsets.UTF_8))
         return SecretKeySpec(keyBytes, "AES")
-    }
-
-    private fun encodeSimple(credentials: SourceCredentials): String {
-        val json = JSONObject().apply {
-            put("apiKey", credentials.apiKey)
-            put("authHeaderValue", credentials.authHeaderValue)
-            val paramsArray = JSONArray()
-            for (param in credentials.authQueryParams) {
-                paramsArray.put(param.toJson())
-            }
-            put("authQueryParams", paramsArray)
-        }
-        return Base64.encodeToString(json.toString().toByteArray(StandardCharsets.UTF_8), Base64.NO_WRAP)
-    }
-
-    private fun decodeSimple(encoded: String): SourceCredentials? {
-        return try {
-            val decoded = String(Base64.decode(encoded, Base64.NO_WRAP), StandardCharsets.UTF_8)
-            val json = JSONObject(decoded)
-            val apiKey = json.optString("apiKey", "")
-            val authHeaderValue = json.optString("authHeaderValue", "")
-            val paramsList = mutableListOf<AuthParam>()
-            val paramsArray = json.optJSONArray("authQueryParams")
-            if (paramsArray != null) {
-                for (i in 0 until paramsArray.length()) {
-                    val pObj = paramsArray.optJSONObject(i)
-                    if (pObj != null) {
-                        paramsList.add(AuthParam.fromJson(pObj))
-                    }
-                }
-            }
-            SourceCredentials(apiKey, authHeaderValue, paramsList)
-        } catch (e: Exception) {
-            null
-        }
     }
 
     companion object {
