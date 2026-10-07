@@ -368,7 +368,7 @@ fun MediaBrowserScreen(
                     viewModel.setSearchQuery(tag)
                     viewModel.executeSearchQuery()
                 },
-                isSaved = { viewModel.isSaved(it) },
+                isSaved = { mediaId -> savedIds.contains(mediaId) },
                 onToggleSave = { viewModel.toggleSave(it) },
                 onOpenAddToCollection = { viewModel.openAddToCollectionDialog(it) },
                 onUndoUnsave = { viewModel.undoLastUnsave() }
