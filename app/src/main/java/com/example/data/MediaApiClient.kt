@@ -251,7 +251,7 @@ class MediaApiClient {
                 val rootObj = JSONObject(trimmed)
                 val targetPath = source.itemsPath.trim()
                 if (targetPath.isNotBlank()) {
-                    val extracted = extractNestedJsonArray(rootObj, targetPath)
+                    val extracted = JsonPathExtractor.extractNestedJsonArray(rootObj, targetPath)
                     if (extracted != null) {
                         steps.add(DiagnosticStep("Results", DiagnosticStatus.PASSED, "Items array found at path '$targetPath' (${extracted.length()} item(s))."))
                         extracted
@@ -332,7 +332,7 @@ class MediaApiClient {
         if (firstParsed != null && firstParsed.imageUrl.isNotBlank()) {
             steps.add(DiagnosticStep("Images", DiagnosticStatus.PASSED, "Image URL mapped successfully: '${firstParsed.imageUrl.take(45)}...'"))
         } else {
-            val rawImage = extractValue(firstObj, source.imageUrlField)
+            val rawImage = JsonPathExtractor.extractValue(firstObj, source.imageUrlField)
             if (rawImage.isNotBlank()) {
                 steps.add(DiagnosticStep("Images", DiagnosticStatus.PASSED, "Image field '${source.imageUrlField}' found: '$rawImage'."))
             } else {
@@ -344,7 +344,7 @@ class MediaApiClient {
         if (firstParsed != null && firstParsed.thumbnailUrl.isNotBlank() && firstParsed.thumbnailUrl != firstParsed.imageUrl) {
             steps.add(DiagnosticStep("Thumbnails", DiagnosticStatus.PASSED, "Preview URL mapped: '${firstParsed.thumbnailUrl.take(45)}...'"))
         } else {
-            val rawThumb = extractValue(firstObj, source.thumbUrlField)
+            val rawThumb = JsonPathExtractor.extractValue(firstObj, source.thumbUrlField)
             if (rawThumb.isNotBlank()) {
                 steps.add(DiagnosticStep("Thumbnails", DiagnosticStatus.PASSED, "Thumbnail field '${source.thumbUrlField}' found."))
             } else {
@@ -356,7 +356,7 @@ class MediaApiClient {
         if (firstParsed != null && firstParsed.tags.isNotEmpty()) {
             steps.add(DiagnosticStep("Tags", DiagnosticStatus.PASSED, "Extracted ${firstParsed.tags.size} tag(s) (e.g. ${firstParsed.tags.take(3).joinToString(", ")})."))
         } else {
-            val rawTags = extractValue(firstObj, source.tagsField)
+            val rawTags = JsonPathExtractor.extractValue(firstObj, source.tagsField)
             if (rawTags.isNotBlank()) {
                 steps.add(DiagnosticStep("Tags", DiagnosticStatus.PASSED, "Tags field '${source.tagsField}' found."))
             } else {
@@ -388,176 +388,8 @@ class MediaApiClient {
         )
     }
 
-    internal fun parseMediaItems(source: MediaSourceConfig, body: String): List<MediaItem> {
-        val trimmed = body.trim()
-        val itemsArray: JSONArray = if (trimmed.startsWith("[")) {
-            JSONArray(trimmed)
-        } else {
-            val rootObj = JSONObject(trimmed)
-            if (source.itemsPath.isBlank()) {
-                when {
-                    rootObj.has("post") -> rootObj.optJSONArray("post")
-                    rootObj.has("posts") -> rootObj.optJSONArray("posts")
-                    rootObj.has("data") -> rootObj.optJSONArray("data")
-                    rootObj.has("results") -> rootObj.optJSONArray("results")
-                    rootObj.has("images") -> rootObj.optJSONArray("images")
-                    else -> null
-                } ?: JSONArray()
-            } else {
-                extractNestedJsonArray(rootObj, source.itemsPath) ?: JSONArray()
-            }
-        }
-
-        val result = mutableListOf<MediaItem>()
-        for (i in 0 until itemsArray.length()) {
-            val obj = itemsArray.optJSONObject(i) ?: continue
-            val item = mapJsonToMediaItem(source, obj, i)
-            if (item != null) {
-                result.add(item)
-            }
-        }
-        return result
-    }
-
-    private fun mapJsonToMediaItem(source: MediaSourceConfig, obj: JSONObject, index: Int): MediaItem? {
-        val rawImage = extractValue(obj, source.imageUrlField)
-        val rawThumb = if (source.thumbUrlField.isNotBlank()) extractValue(obj, source.thumbUrlField) else ""
-        val rawSample = if (source.sampleUrlField.isNotBlank()) extractValue(obj, source.sampleUrlField) else ""
-
-        // Determine image, thumbnail, and sample URLs consistently respecting configured fields
-        val (finalImage, finalThumb, finalSample) = resolveUrls(source, obj, rawImage, rawThumb, rawSample)
-        if (finalImage.isBlank()) return null
-
-        val id = extractValue(obj, "id").ifBlank {
-            extractValue(obj, "image_id").ifBlank {
-                extractValue(obj, "signature").ifBlank { "item-${source.id}-$index" }
-            }
-        }
-        val title = extractValue(obj, source.titleField).ifBlank {
-            extractValue(obj, "signature").ifBlank {
-                extractValue(obj, "name").ifBlank { "Art #$id" }
-            }
-        }
-
-        val postUrl = when {
-            source.apiUrl.contains("safebooru.org") -> "https://safebooru.org/index.php?page=post&s=view&id=$id"
-            source.apiUrl.contains("danbooru") -> "https://danbooru.donmai.us/posts/$id"
-            source.apiUrl.contains("yande.re") -> "https://yande.re/post/show/$id"
-            source.apiUrl.contains("gelbooru.com") -> "https://gelbooru.com/index.php?page=post&s=view&id=$id"
-            source.postUrlField.isNotBlank() -> {
-                val rawPost = extractValue(obj, source.postUrlField)
-                if (rawPost.isNotBlank() && (rawPost.contains("://") || rawPost.startsWith("//") || rawPost.startsWith("/"))) {
-                    fixUrl(rawPost)
-                } else null
-            }
-            else -> null
-        }
-
-        // Tags parsing
-        val tagsList = extractTags(obj, source.tagsField)
-
-        // Rating parsing
-        val isDanbooruSource = source.apiUrl.contains("danbooru") || source.id.contains("danbooru")
-        val isWaifuSource = source.apiUrl.contains("waifu.im") || source.id.contains("waifu")
-
-        val rating = if (isWaifuSource) {
-            when {
-                obj.has("isNsfw") -> if (obj.optBoolean("isNsfw")) MediaRating.ADULT else MediaRating.SAFE
-                obj.has("is_nsfw") -> if (obj.optBoolean("is_nsfw")) MediaRating.ADULT else MediaRating.SAFE
-                else -> parseRating(extractValue(obj, source.ratingField), isDanbooru = false)
-            }
-        } else {
-            parseRating(
-                ratingStr = extractValue(obj, source.ratingField),
-                isDanbooru = isDanbooruSource
-            )
-        }
-
-        // Media type detection (GIF, VIDEO, IMAGE) using strong evidence hierarchy
-        val explicitTypeField = extractValue(obj, source.mediaTypeField).ifBlank {
-            obj.optString("media_type", obj.optString("type", obj.optString("file_type", obj.optString("mime_type", ""))))
-        }
-        val fileExtField = obj.optString("file_ext", obj.optString("ext", obj.optString("extension", "")))
-        val safebooruImage = obj.optString("image")
-        val effectiveFileExt = fileExtField.ifBlank {
-            if (safebooruImage.isNotBlank()) safebooruImage.substringAfterLast('.', "") else ""
-        }
-
-        val mediaType = detectMediaType(
-            explicitType = explicitTypeField,
-            fileExtField = effectiveFileExt,
-            actualMediaUrl = finalImage,
-            rawMediaUrl = rawImage,
-            tags = tagsList
-        )
-
-        val resolvedFileExt = effectiveFileExt.ifBlank {
-            finalImage.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase().takeIf { it.isNotBlank() }
-        }
-
-        val rawAuthor = extractValue(obj, source.authorField)
-        val author = if (rawAuthor.isNotBlank() && !rawAuthor.startsWith("[")) rawAuthor else {
-            val artistsArr = obj.optJSONArray("artists") ?: obj.optJSONArray(source.authorField)
-            if (artistsArr != null && artistsArr.length() > 0) {
-                (0 until artistsArr.length()).mapNotNull { idx ->
-                    val aObj = artistsArr.optJSONObject(idx)
-                    aObj?.optString("name") ?: aObj?.optString("artist")
-                }.filter { it.isNotBlank() }.joinToString(", ")
-            } else if (rawAuthor.isNotBlank()) rawAuthor else null
-        }
-        val width = obj.optInt("width", 0).takeIf { it > 0 } ?: obj.optInt("image_width", 0).takeIf { it > 0 }
-        val height = obj.optInt("height", 0).takeIf { it > 0 } ?: obj.optInt("image_height", 0).takeIf { it > 0 }
-        val fileSize = obj.optLong("file_size", 0L).takeIf { it > 0 }
-
-        // Metadata extraction for sorting accuracy
-        val score = obj.optInt("score", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-            ?: obj.optInt("up_score", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-        val favorites = obj.optInt("fav_count", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-            ?: obj.optInt("favorites", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-        val views = obj.optInt("views", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-
-        val staticPreview = when (mediaType) {
-            MediaType.VIDEO -> when {
-                finalThumb.isNotBlank() && !isVideoUrl(finalThumb) -> finalThumb
-                !finalSample.isNullOrBlank() && !isVideoUrl(finalSample) -> finalSample
-                else -> ""
-            }
-            MediaType.GIF -> when {
-                finalThumb.isNotBlank() && !isVideoUrl(finalThumb) -> finalThumb
-                !finalSample.isNullOrBlank() && !isVideoUrl(finalSample) -> finalSample
-                !isVideoUrl(finalImage) -> finalImage
-                else -> ""
-            }
-            MediaType.IMAGE, MediaType.ALL -> when {
-                finalThumb.isNotBlank() && !isVideoUrl(finalThumb) -> finalThumb
-                !finalSample.isNullOrBlank() && !isVideoUrl(finalSample) -> finalSample
-                !isVideoUrl(finalImage) -> finalImage
-                else -> ""
-            }
-        }
-
-        return MediaItem(
-            id = id,
-            title = title,
-            actualMediaUrl = finalImage,
-            previewUrl = staticPreview,
-            sampleUrl = finalSample,
-            postUrl = postUrl,
-            tags = tagsList,
-            rating = rating,
-            mediaType = mediaType,
-            width = width,
-            height = height,
-            author = author,
-            sourceName = source.name,
-            description = obj.optString("alt_text", obj.optString("description", "")).ifBlank { null },
-            fileSize = fileSize,
-            fileExt = resolvedFileExt,
-            score = score,
-            favorites = favorites,
-            views = views
-        )
-    }
+    internal fun parseMediaItems(source: MediaSourceConfig, body: String): List<MediaItem> =
+        MediaResponseParser.parseMediaItems(source, body)
 
     companion object {
         fun parseRating(ratingStr: String?, isDanbooru: Boolean = false): MediaRating =
@@ -590,139 +422,4 @@ class MediaApiClient {
             tags = tags
         )
     }
-
-    private fun resolveUrls(
-        source: MediaSourceConfig,
-        obj: JSONObject,
-        rawImage: String,
-        rawThumb: String,
-        rawSample: String = ""
-    ): Triple<String, String, String?> {
-        // Safebooru handling
-        if (source.apiUrl.contains("safebooru.org")) {
-            val directory = obj.optString("directory")
-            val image = obj.optString("image")
-            if (directory.isNotBlank() && image.isNotBlank()) {
-                val full = "https://safebooru.org/images/$directory/$image"
-                val rawPreview = obj.optString("preview_url")
-                val thumb = when {
-                    rawPreview.isNotBlank() -> fixUrl(rawPreview)
-                    image.endsWith(".mp4", true) || image.endsWith(".webm", true) -> {
-                        val baseName = image.substringBeforeLast('.')
-                        "https://safebooru.org/thumbnails/$directory/thumbnail_$baseName.jpg"
-                    }
-                    else -> "https://safebooru.org/thumbnails/$directory/thumbnail_$image"
-                }
-                val sample = if (obj.optBoolean("sample", false)) {
-                    "https://safebooru.org/samples/$directory/sample_$image"
-                } else null
-                return Triple(full, thumb, sample)
-            }
-        }
-
-        // Danbooru handling
-        if (source.apiUrl.contains("danbooru")) {
-            val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("large_file_url") } }
-            val sampleUrl = rawSample.ifBlank { obj.optString("large_file_url") }.takeIf { it.isNotBlank() }
-            val rawPreview = obj.optString("preview_file_url")
-            val previewUrl = when {
-                rawPreview.isNotBlank() && !isVideoUrl(rawPreview) -> rawPreview
-                rawThumb.isNotBlank() && !isVideoUrl(rawThumb) -> rawThumb
-                sampleUrl != null && !isVideoUrl(sampleUrl) -> sampleUrl
-                !isVideoUrl(fileUrl) -> fileUrl
-                else -> ""
-            }
-            if (fileUrl.isNotBlank()) {
-                return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
-            }
-        }
-
-        // Yande.re handling
-        if (source.apiUrl.contains("yande.re")) {
-            val fileUrl = rawImage.ifBlank { obj.optString("file_url").ifBlank { obj.optString("sample_url") } }
-            val sampleUrl = rawSample.ifBlank { obj.optString("sample_url") }.takeIf { it.isNotBlank() }
-            val rawPreview = obj.optString("preview_url")
-            val previewUrl = when {
-                rawPreview.isNotBlank() && !isVideoUrl(rawPreview) -> rawPreview
-                rawThumb.isNotBlank() && !isVideoUrl(rawThumb) -> rawThumb
-                sampleUrl != null && !isVideoUrl(sampleUrl) -> sampleUrl
-                !isVideoUrl(fileUrl) -> fileUrl
-                else -> ""
-            }
-            if (fileUrl.isNotBlank()) {
-                return Triple(fixUrl(fileUrl), fixUrl(previewUrl), sampleUrl?.let { fixUrl(it) })
-            }
-        }
-
-        // Gelbooru handling (img4.gelbooru.com CDN / HTTPS normalization)
-        if (source.apiUrl.contains("gelbooru.com") || source.id.contains("gelbooru")) {
-            val directory = obj.optString("directory")
-            val image = obj.optString("image")
-            val rawFileUrl = rawImage.ifBlank { obj.optString("file_url") }
-            val rawThumbUrl = rawThumb.ifBlank { obj.optString("preview_url") }
-            val rawSampleUrl = rawSample.ifBlank { obj.optString("sample_url") }
-
-            val full = when {
-                rawFileUrl.isNotBlank() -> fixUrl(rawFileUrl)
-                directory.isNotBlank() && image.isNotBlank() -> "https://img4.gelbooru.com/images/$directory/$image"
-                else -> ""
-            }
-
-            val thumb = when {
-                rawThumbUrl.isNotBlank() && !isVideoUrl(rawThumbUrl) -> fixUrl(rawThumbUrl)
-                directory.isNotBlank() && image.isNotBlank() -> {
-                    val baseName = image.substringBeforeLast('.')
-                    "https://img4.gelbooru.com/thumbnails/$directory/thumbnail_$baseName.jpg"
-                }
-                !isVideoUrl(full) -> full
-                else -> ""
-            }
-
-            val hasSample = obj.optInt("sample", 0) == 1 || obj.optBoolean("sample", false)
-            val sample = when {
-                rawSampleUrl.isNotBlank() -> fixUrl(rawSampleUrl)
-                hasSample && directory.isNotBlank() && image.isNotBlank() -> "https://img4.gelbooru.com/samples/$directory/sample_$image"
-                else -> null
-            }
-
-            if (full.isNotBlank()) {
-                return Triple(full, thumb, sample)
-            }
-        }
-
-        // Generic URL resolution consistently respecting configured fields
-        val full = fixUrl(rawImage)
-        val sample = if (rawSample.isNotBlank()) fixUrl(rawSample) else null
-
-        // Never use a known video URL as a feed image thumbnail.
-        // Avoid falling back to the original full-resolution file when a safer preview is available.
-        val thumbCandidate = when {
-            rawThumb.isNotBlank() && !isVideoUrl(rawThumb) -> fixUrl(rawThumb)
-            sample != null && !isVideoUrl(sample) -> sample
-            !isVideoUrl(full) -> full
-            else -> ""
-        }
-
-        return Triple(full, thumbCandidate, sample)
-    }
-
-    private fun fixUrl(url: String): String {
-        val trimmed = url.trim()
-        return when {
-            trimmed.startsWith("//") -> "https:$trimmed"
-            trimmed.startsWith("http://") -> "https://" + trimmed.removePrefix("http://")
-            trimmed.startsWith("https://") -> trimmed
-            trimmed.isNotBlank() && !trimmed.contains("://") -> "https://$trimmed"
-            else -> trimmed
-        }
-    }
-
-    private fun extractTags(obj: JSONObject, tagsField: String): List<String> =
-        JsonPathExtractor.extractTags(obj, tagsField)
-
-    private fun extractValue(obj: JSONObject, path: String): String =
-        JsonPathExtractor.extractValue(obj, path)
-
-    private fun extractNestedJsonArray(obj: JSONObject, path: String): JSONArray? =
-        JsonPathExtractor.extractNestedJsonArray(obj, path)
 }
