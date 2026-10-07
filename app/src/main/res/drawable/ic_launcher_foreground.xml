@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/ic_media_browser_logo_1791004472829"
+        android:drawable="@drawable/artflux_launcher_icon_1791336152670"
         android:gravity="center" />
 </layer-list>
