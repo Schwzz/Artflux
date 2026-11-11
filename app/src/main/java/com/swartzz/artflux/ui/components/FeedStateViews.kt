@@ -231,6 +231,24 @@ fun ErrorStateView(
     }
 }
 
+/**
+ * Automatic pagination trigger predicate for feed grids.
+ *
+ * In a staggered grid the "Load more" footer is a full-line item at the very end,
+ * so the highest visible index — not the last entry of `visibleItemsInfo`, whose
+ * order is lane-dependent — decides whether the viewport is near the end.
+ * Automatic prefetching and the manual footer button both funnel into the same
+ * guarded load path in the view model, which collapses repeats for the same page.
+ */
+object FeedPaginationTrigger {
+    const val THRESHOLD_ITEMS = 5
+
+    fun isNearEnd(visibleIndexes: List<Int>, totalItemsCount: Int): Boolean {
+        if (totalItemsCount <= 0) return false
+        return (visibleIndexes.maxOrNull() ?: -1) >= totalItemsCount - THRESHOLD_ITEMS
+    }
+}
+
 /** Always offers a manual fallback when automatic pagination cannot fill the viewport. */
 @Composable
 fun FeedPaginationFooter(isLoading: Boolean, error: String?, onLoadMore: () -> Unit) {

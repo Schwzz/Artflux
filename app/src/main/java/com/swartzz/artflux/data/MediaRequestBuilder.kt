@@ -14,27 +14,31 @@ object MediaRequestBuilder {
         val urlBuilder = source.apiUrl.toHttpUrlOrNull()?.newBuilder()
             ?: throw IllegalArgumentException("Invalid API URL: ${source.apiUrl}")
 
-        val isWaifu = source.apiUrl.contains("waifu.im") || source.id.contains("waifu")
+        val isWaifu = source.isWaifuFamily
 
         if (isWaifu) {
-            // Waifu.im API v7
+            // Waifu.im API v7 (community instances such as api.waifu.best).
+            // The live API binds these parameters case-insensitively, but the
+            // documented casing is used so future strict servers keep working.
             val actualPage = (page - 1) + source.pageStartsAt
             urlBuilder.addQueryParameter("page", actualPage.toString())
             urlBuilder.addQueryParameter("pageSize", source.defaultPageSize.toString())
 
             var cleanQuery = query.trim()
-            if (cleanQuery.contains("is_nsfw:false", ignoreCase = true)) {
-                cleanQuery = cleanQuery.replace("is_nsfw:false", "", ignoreCase = true).trim()
-                urlBuilder.addQueryParameter("is_nsfw", "false")
-            } else if (cleanQuery.contains("is_nsfw:true", ignoreCase = true)) {
-                cleanQuery = cleanQuery.replace("is_nsfw:true", "", ignoreCase = true).trim()
-                urlBuilder.addQueryParameter("is_nsfw", "true")
+            // NSFW toggle arrives as a pseudo tag from the rating filters
+            // ("isNsfw:false" / "isNsfw:true"; legacy configs may still carry
+            // "is_nsfw:..."). It must be translated to the boolean IsNsfw
+            // parameter, otherwise the filter is silently ignored.
+            val nsfwRegex = Regex("is[_]?nsfw:(true|false)", RegexOption.IGNORE_CASE)
+            nsfwRegex.find(cleanQuery)?.let { match ->
+                cleanQuery = cleanQuery.replace(match.value, "", ignoreCase = true).trim()
+                urlBuilder.addQueryParameter("isNsfw", match.groupValues[1].lowercase())
             }
 
             if (cleanQuery.isNotBlank()) {
                 val tagTokens = cleanQuery.split("[\\s,]+".toRegex()).filter { it.isNotBlank() }
                 for (tag in tagTokens) {
-                    urlBuilder.addQueryParameter("IncludedTags", tag)
+                    urlBuilder.addQueryParameter("includedTags", tag)
                 }
             }
         } else {

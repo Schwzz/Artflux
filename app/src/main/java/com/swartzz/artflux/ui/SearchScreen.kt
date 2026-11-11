@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -357,7 +358,7 @@ fun SearchScreen(
                             }
 
                             if (!searchState.hasReachedEnd) {
-                                item {
+                                item(span = StaggeredGridItemSpan.FullLine) {
                                     FeedPaginationFooter(
                                         isLoading = searchState.isLoadingMore,
                                         error = searchState.paginationError,

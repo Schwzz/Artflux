@@ -21,7 +21,7 @@ object ArtfluxNetwork {
             lower.contains("danbooru") || lower.contains("donmai.us") -> "https://danbooru.donmai.us/"
             lower.contains("safebooru.org") || lower.contains("safebooru") -> "https://safebooru.org/"
             lower.contains("yande.re") -> "https://yande.re/"
-            lower.contains("waifu.im") -> "https://waifu.im/"
+            lower.contains("waifu.im") || lower.contains("waifu.best") -> "https://waifu.best/"
             else -> {
                 try {
                     val uri = Uri.parse(url)

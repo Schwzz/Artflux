@@ -86,11 +86,20 @@ data class MediaSourceConfig(
                 authQueryParams.any { it.key.isNotBlank() && it.value.isNotBlank() }
 
     /**
+     * True for the waifu.im API family (including its community-maintained
+     * successors running the same open-source API, such as waifu.best).
+     * The original api.waifu.im host was shut down on 2026-10-24 and no
+     * longer resolves, so requests target a compatible instance instead.
+     */
+    val isWaifuFamily: Boolean
+        get() = apiUrl.contains("waifu.im") || apiUrl.contains("waifu.best") || id.contains("waifu")
+
+    /**
      * Returns media types that Artflux can render and filter for this source.
      * All sources support IMAGE, GIF, and VIDEO in Artflux.
      */
     fun getSupportedMediaTypes(): List<MediaType> {
-        if (apiUrl.contains("waifu.im") || id.contains("waifu")) {
+        if (isWaifuFamily) {
             return listOf(MediaType.ALL)
         }
         return listOf(MediaType.ALL, MediaType.IMAGE, MediaType.GIF, MediaType.VIDEO)
@@ -592,8 +601,8 @@ RULES:
         val BUILT_IN_WAIFU_IM = MediaSourceConfig(
             id = "builtin_waifu_im",
             name = "Waifu.im",
-            apiUrl = "https://api.waifu.im/images",
-            searchParam = "IncludedTags",
+            apiUrl = "https://api.waifu.best/images",
+            searchParam = "includedTags",
             pageParam = "page",
             pageStartsAt = 1,
             pageSizeParam = "pageSize",
@@ -609,12 +618,12 @@ RULES:
             titleField = "signature",
             authorField = "artists",
             isBuiltIn = true,
-            description = "Anime illustration archive with v7 API tag searching and SFW/NSFW filtering",
+            description = "Community-run successor of the waifu.im API (shut down 2026-10-24) with tag searching and SFW/NSFW filtering",
             gifQueryTag = "",
             videoQueryTag = "",
-            safeRatingTag = "is_nsfw:false",
+            safeRatingTag = "isNsfw:false",
             suggestiveRatingTag = "",
-            adultRatingTag = "is_nsfw:true"
+            adultRatingTag = "isNsfw:true"
         )
 
         val DEFAULT_SOURCES = listOf(
