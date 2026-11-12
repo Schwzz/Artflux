@@ -198,7 +198,7 @@ fun HomeFeedSettingsSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val isHomeWaifu = selectedSource.apiUrl.contains("waifu.im") || selectedSource.id.contains("waifu")
+            val isHomeWaifu = selectedSource.isWaifuFamily
 
             // Media Type Section
             if (supportedTypes.size > 1) {

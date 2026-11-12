@@ -111,7 +111,7 @@ fun HomeHub(
                         MediaCard(item = item, quality = thumbnailQuality, blurNsfw = blurNsfw, onClick = { onOpen(index) },
                             onDownloadClick = { onDownload(item) }, onTagClick = { tag -> onQueryChange(tag); searchOpen = true; submit(tag) })
                     }
-                    if (!state.hasReachedEnd) item { FeedPaginationFooter(state.isLoadingMore, state.paginationError, onMore) }
+                    if (!state.hasReachedEnd) item(span = StaggeredGridItemSpan.FullLine) { FeedPaginationFooter(state.isLoadingMore, state.paginationError, onMore) }
                 }
             }
         }

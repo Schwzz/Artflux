@@ -165,6 +165,25 @@ class FeedReliabilityTest {
         assertFalse(vm.homeState.value.isLoadingMore)
     }
 
+    @Test fun overlappingLoadMoreRequestsDoNotFetchTheSamePageTwice() = runTest {
+        val vm = viewModel()
+        runCurrent()
+        fetcher.calls[0].result.complete(Result.success(listOf(item("one"))))
+        runCurrent()
+        vm.loadNextHomePage()
+        runCurrent()
+        // A second trigger while page 2 is still in flight must not start another request.
+        vm.loadNextHomePage()
+        runCurrent()
+        assertEquals(2, fetcher.calls.size)
+        assertEquals(2, fetcher.calls.last().page)
+        assertTrue(vm.homeState.value.isLoadingMore)
+        fetcher.calls.last().result.complete(Result.success(listOf(item("two"))))
+        runCurrent()
+        assertEquals(3, vm.homeState.value.currentPage)
+        assertFalse(vm.homeState.value.isLoadingMore)
+    }
+
     @Test fun cancelledSearchCannotPublishStaleResults() = runTest {
         val vm = viewModel()
         runCurrent()

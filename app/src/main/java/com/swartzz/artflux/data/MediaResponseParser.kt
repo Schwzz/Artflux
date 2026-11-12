@@ -84,7 +84,7 @@ object MediaResponseParser {
 
         // Rating parsing
         val isDanbooruSource = source.apiUrl.contains("danbooru") || source.id.contains("danbooru")
-        val isWaifuSource = source.apiUrl.contains("waifu.im") || source.id.contains("waifu")
+        val isWaifuSource = source.isWaifuFamily
 
         val rating = if (isWaifuSource) {
             when {

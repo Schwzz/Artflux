@@ -7,9 +7,22 @@ import java.net.SocketTimeoutException
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 object MediaLoadMessage {
+    /** Media3 error codes that mean the device cannot decode the content. */
+    private val decoderErrorCodes = setOf(
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED,
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED
+    )
+
     fun forError(error: Throwable, local: Boolean): String {
         if (local) return "This downloaded file is unavailable. Check Offline storage in Library, then download another copy."
         val causes = generateSequence(error) { it.cause }.take(8).toList()
+        val playback = causes.filterIsInstance<androidx.media3.common.PlaybackException>().firstOrNull()
+        if (playback != null && playback.errorCode in decoderErrorCodes) {
+            return "This device can't decode this video format. Try the original source or another file."
+        }
         val http = causes.filterIsInstance<HttpException>().firstOrNull()?.response?.code
             ?: causes.filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.responseCode
         return when (http) {
@@ -19,6 +32,7 @@ object MediaLoadMessage {
             in 500..599 -> "The media server is having trouble. Try again later."
             else -> when {
                 causes.any { it is SocketTimeoutException } -> "Loading took too long. Check your connection and retry."
+                causes.any { it is java.net.UnknownHostException } -> "Couldn't find the media server. Check your connection, then retry; the source may also be offline."
                 causes.any { it is FileNotFoundException } -> "This media file could not be found."
                 causes.any { it is IOException } -> "Unable to load this file. Check your connection and retry."
                 else -> "This file could not be displayed. Try again or open the original source from Details."

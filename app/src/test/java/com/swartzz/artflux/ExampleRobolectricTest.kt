@@ -59,7 +59,7 @@ class ExampleRobolectricTest {
     val waifuIm = defaults[3]
     assertEquals("Waifu.im", waifuIm.name)
     assertTrue(waifuIm.isBuiltIn)
-    assertTrue(waifuIm.apiUrl.contains("api.waifu.im"))
+    assertTrue(waifuIm.apiUrl.contains("api.waifu.best"))
   }
 
   @Test
@@ -2317,8 +2317,8 @@ class ExampleRobolectricTest {
   @Test
   fun testWaifuImSourceConfigurationAndParsing() {
     val waifuSource = MediaSourceConfig.BUILT_IN_WAIFU_IM
-    assertEquals("https://api.waifu.im/images", waifuSource.apiUrl)
-    assertEquals("IncludedTags", waifuSource.searchParam)
+    assertEquals("https://api.waifu.best/images", waifuSource.apiUrl)
+    assertEquals("includedTags", waifuSource.searchParam)
     assertEquals("items", waifuSource.itemsPath)
     assertTrue(waifuSource.isBuiltIn)
 

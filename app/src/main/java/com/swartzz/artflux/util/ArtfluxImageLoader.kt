@@ -31,11 +31,13 @@ object ArtfluxImageLoader {
                                 requestBuilder.header(k, v)
                             }
                             val response = chain.proceed(requestBuilder.build())
-                            if (!response.isSuccessful) {
-                                throw java.io.IOException("HTTP ${response.code}: ${response.message.ifBlank { "Request failed" }}")
-                            }
+                            // Unsuccessful responses are NOT converted to a generic IOException here:
+                            // Coil's fetcher throws HttpException carrying the real status code
+                            // (403/404/429/5xx), which MediaLoadMessage translates for the user.
                             val contentType = response.header("Content-Type")?.lowercase().orEmpty()
                             if (contentType.isNotBlank() && (contentType.contains("text/html") || contentType.contains("application/json") || contentType.contains("text/plain"))) {
+                                // Close the unusable body so the pooled connection is not leaked.
+                                response.close()
                                 throw java.io.IOException("Server returned '$contentType' instead of valid media (HTTP ${response.code})")
                             }
                             response

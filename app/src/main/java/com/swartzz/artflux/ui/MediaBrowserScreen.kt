@@ -204,11 +204,14 @@ private fun HomeRoute(vm: MediaBrowserViewModel, state: FeedState, browsing: Bro
     }
     DisposableEffect(Unit) { onDispose { if (!restoring) vm.rememberSourceScroll(sourceId, query, filter, grid.firstVisibleItemIndex, grid.firstVisibleItemScrollOffset) } }
     val more by remember { derivedStateOf {
-        val info = grid.layoutInfo
-        info.totalItemsCount > 0 && (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 5
+        FeedPaginationTrigger.isNearEnd(
+            visibleIndexes = grid.layoutInfo.visibleItemsInfo.map { it.index },
+            totalItemsCount = grid.layoutInfo.totalItemsCount
+        )
     } }
     LaunchedEffect(more, state.currentPage, state.isLoadingMore, state.isLoading, state.isRefreshing, restoring) {
-        if (more && !restoring && state.mediaItems.isNotEmpty()) vm.loadNextHomePage()
+        // Automatic prefetching only; manual retries run through the footer button.
+        if (more && !restoring && state.mediaItems.isNotEmpty() && state.paginationError == null) vm.loadNextHomePage()
     }
     HomeHub(state, browsing, grid, quality, blur, vm::setHomeQuery, vm::searchHome, sources, filters, vm::setHomeFilterState,
         vm::refreshHome, vm::retryHomePage, { vm.openLightbox(it, state.mediaItems) }, vm::promptDownload,

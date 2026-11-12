@@ -140,7 +140,7 @@ fun SearchFilterSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val isWaifu = selectedSource.apiUrl.contains("waifu.im") || selectedSource.id.contains("waifu")
+            val isWaifu = selectedSource.isWaifuFamily
 
             // Media Type Section (hidden if source supports only ALL media type)
             if (supportedTypes.size > 1) {

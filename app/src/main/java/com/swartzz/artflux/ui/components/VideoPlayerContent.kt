@@ -81,15 +81,26 @@ fun VideoPlayerContent(
             val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, httpDataSourceFactory)
             val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(dataSourceFactory)
 
+            // Allow ExoPlayer to fall back to alternative decoders when the primary
+            // hardware decoder cannot initialize (for example a 3840x1600 60fps AVC
+            // stream exceeding OMX.qcom.video.decoder.avc capabilities). Without this
+            // the player reports ERROR_CODE_DECODER_INIT_FAILED instead of trying the
+            // software decoder.
+            val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context)
+                .setEnableDecoderFallback(true)
+
             ExoPlayer.Builder(context)
+                .setRenderersFactory(renderersFactory)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build().apply {
                     val media3ItemBuilder = Media3Item.Builder().setUri(Uri.parse(item.actualMediaUrl))
-                    val clean = item.actualMediaUrl.substringBefore('?').substringBefore('#').lowercase()
-                    when {
-                        clean.endsWith(".mp4") -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP4)
-                        clean.endsWith(".webm") -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_WEBM)
-                        clean.endsWith(".mkv") -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MATROSKA)
+                    // Prefer the API-provided file extension metadata, then fall back to the URL.
+                    val extension = item.fileExt?.lowercase()?.trim()?.removePrefix(".")?.takeIf { it.isNotBlank() }
+                        ?: item.actualMediaUrl.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase()
+                    when (extension) {
+                        "mp4" -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP4)
+                        "webm" -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_WEBM)
+                        "mkv" -> media3ItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MATROSKA)
                     }
                     setMediaItem(media3ItemBuilder.build())
                     repeatMode = if (loopVideo) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
@@ -145,8 +156,9 @@ fun VideoPlayerContent(
             .padding(top = 70.dp, bottom = 150.dp, start = 8.dp, end = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Instant preview placeholder while video prepares/buffers
-        val videoPreviewUrl = item.previewUrl
+        // Instant preview placeholder while video prepares/buffers.
+        // Uses the shared thumbnail helper so a video URL is never loaded as an image.
+        val videoPreviewUrl = item.getThumbnailForQuality(com.swartzz.artflux.model.ThumbnailQuality.DEFAULT)
         if (videoPreviewUrl.isNotBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
